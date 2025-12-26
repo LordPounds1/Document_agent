@@ -9,26 +9,40 @@ python-dateutil>=2.8.2
 imapclient>=2.3.0
 email-validator>=2.0.0
 
-# Работа с Word документами
+# Работа с документами
 python-docx>=0.8.11
 docx2txt>=0.8
 pywin32>=306  # Только для Windows, для чтения .doc файлов
+
+# Парсинг документов (Docling)
+docling>=2.0.0  # Open-source комбайн для парсинга документов
 
 # Работа с PDF
 PyPDF2>=3.0.0
 pdfplumber>=0.9.0
 
-# LLM интеграция
+# LLM интеграция и LangChain
 llama-cpp-python>=0.2.0  # Локальная модель (основной режим)
-requests>=2.31.0  # Для GigaChat API (опционально, если USE_GIGACHAT=true)
+langchain>=0.1.0  # LangChain фреймворк
+langchain-community>=0.0.10  # LangChain community integrations
+requests>=2.31.0
 transformers>=4.35.0  # Опционально
 torch>=2.0.0  # Опционально
 sentencepiece>=0.1.99  # Опционально
 
 # Векторные embeddings и RAG
-sentence-transformers>=2.2.0  # Для векторных представлений шаблонов
-scikit-learn>=1.3.0  # Fallback для TF-IDF embeddings
+sentence-transformers>=2.2.0  # Для embeddings документов
+scikit-learn>=1.3.0  # Для TF-IDF и других алгоритмов
 numpy>=1.24.0  # Для работы с векторами
+
+# Vector Stores для RAG
+faiss-cpu>=1.7.4  # FAISS для локального хранения векторов (CPU версия)
+# faiss-gpu  # Если нужна GPU версия, раскомментировать
+chromadb>=0.4.0  # Alternative: Chroma для vector storage
+
+# Reranking и Advanced RAG
+sentence-transformers[multilingual]>=2.2.0  # Для cross-encoder
+cohere>=5.0.0  # Опционально: для Cohere reranker API
 
 # Вспомогательные
 tqdm>=4.66.0

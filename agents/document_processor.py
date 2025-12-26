@@ -3,9 +3,27 @@ import json
 import re
 import os
 import tempfile
-from typing import Dict, Optional
+from typing import Dict, Optional, List, Tuple
 from docx import Document
 from pathlib import Path
+
+# LangChain интеграция
+try:
+    from langchain.schema import Document as LangChainDocument
+    LANGCHAIN_AVAILABLE = True
+except ImportError:
+    LANGCHAIN_AVAILABLE = False
+
+# RAG модули
+try:
+    from agents.docling_parser import DoclingParser
+    from agents.rag_chunking import RAGChunkingPipeline
+    from agents.pre_retrieval import PreRetrievalPipeline
+    from agents.post_retrieval import PostRetrievalPipeline
+    from agents.vector_store import RAGVectorStore
+    RAG_AVAILABLE = True
+except ImportError:
+    RAG_AVAILABLE = False
 
 # Попытка импорта библиотек для старых форматов
 try:
@@ -16,35 +34,99 @@ except ImportError:
 logger = logging.getLogger(__name__)
 
 class DocumentProcessor:
-    """Обработчик документов с использованием LLM"""
+    """
+    Обработчик документов с использованием LLM и Advanced RAG
     
-    def __init__(self, model_path: Optional[str] = None):
+    Поддерживает:
+    - Direct LLM анализ (базовый режим)
+    - Advanced RAG (при наличии документов в базе)
+    """
+    
+    def __init__(self, model_path: Optional[str] = None, enable_rag: bool = False):
         self.llm_client = None
         self.model_path = model_path
+        self.rag_enabled = False
+        
+        # RAG компоненты
+        self.docling_parser = None
+        self.chunking_pipeline = None
+        self.pre_retrieval = None
+        self.post_retrieval = None
+        self.vector_store = None
         
         if model_path:
             self._init_local_model(model_path)
+        
+        if enable_rag and RAG_AVAILABLE:
+            self._init_rag_components()
 
     def _init_local_model(self, model_path: str):
         try:
             from llama_cpp import Llama
             logger.info(f"Загрузка локальной модели: {model_path}")
             
-            # ИЗМЕНЕНИЕ 1: Увеличиваем контекст
-            # n_ctx=0 использует значение из модели (обычно 32k для Mistral v0.3),
-            # но для безопасности ставим явные 16384 (хватит на ~50 страниц текста)
             self.llm_client = Llama(
                 model_path=model_path,
-                n_ctx=16384,          # Было 4096 -> стало 16384
-                n_gpu_layers=35,      # Если падает по памяти GPU, уменьши это число (напр. до 20)
+                n_ctx=16384,
+                n_gpu_layers=35,
                 verbose=False
             )
             logger.info(f"[OK] Локальная модель успешно загружена (Context: 16k)")
         except Exception as e:
             logger.error(f"❌ Ошибка загрузки модели: {e}")
             self.llm_client = None
-
-    def extract_text_from_attachments(self, attachments: list) -> str:
+    
+    def _init_rag_components(self):
+        """Инициализация RAG компонентов"""
+        try:
+            if not LANGCHAIN_AVAILABLE or not RAG_AVAILABLE:
+                logger.warning("LangChain или RAG модули не доступны")
+                return
+            
+            from sentence_transformers import SentenceTransformer
+            
+            logger.info("[RAG] Инициализация Advanced RAG компонентов...")
+            
+            # Docling парсер
+            self.docling_parser = DoclingParser()
+            logger.info("  ✓ Docling Parser")
+            
+            # Chunking
+            self.chunking_pipeline = RAGChunkingPipeline(
+                chunk_size=1024,
+                chunk_overlap=256,
+                strategy="semantic"
+            )
+            logger.info("  ✓ RAG Chunking Pipeline")
+            
+            # Pre-Retrieval
+            self.pre_retrieval = PreRetrievalPipeline(llm_client=self.llm_client)
+            logger.info("  ✓ Pre-Retrieval Pipeline")
+            
+            # Post-Retrieval
+            self.post_retrieval = PostRetrievalPipeline(use_reranking=True)
+            logger.info("  ✓ Post-Retrieval Pipeline")
+            
+            # Vector Store
+            embeddings = SentenceTransformer('intfloat/multilingual-e5-base')
+            self.vector_store = RAGVectorStore(
+                embeddings=embeddings,
+                store_type="faiss",
+                store_path="data/vector_store"
+            )
+            
+            # Пытаемся загрузить существующий индекс
+            if not self.vector_store.load():
+                logger.info("  ✓ Vector Store (новый индекс)")
+            else:
+                logger.info("  ✓ Vector Store (загружен из сохранения)")
+            
+            self.rag_enabled = True
+            logger.info("✅ Advanced RAG успешно инициализирован")
+            
+        except Exception as e:
+            logger.error(f"❌ Ошибка инициализации RAG: {e}")
+            self.rag_enabled = False
         """Извлечение текста из вложений через временные файлы (поддержка .doc, .docx, .pdf)"""
         texts = []
 
@@ -322,3 +404,219 @@ user
     def _clean_person_name(self, val): return str(val).strip()
     def _normalize_date(self, val): return str(val).strip()
     def _normalize_amount(self, val): return str(val).strip()
+    
+    # ======================== RAG МЕТОДЫ ========================
+    
+    def index_templates(self, template_files: List[str]) -> bool:
+        """
+        Индексирование шаблонов документов в Vector Store для RAG
+        
+        Args:
+            template_files: Список путей к файлам шаблонов
+        
+        Returns:
+            True если успешно, False иначе
+        """
+        if not self.rag_enabled:
+            logger.warning("RAG не включен, индексирование невозможно")
+            return False
+        
+        try:
+            logger.info(f"📚 Индексирование {len(template_files)} шаблонов...")
+            all_documents = []
+            
+            for template_file in template_files:
+                if not Path(template_file).exists():
+                    logger.warning(f"Файл не найден: {template_file}")
+                    continue
+                
+                # Парсируем документ
+                docs = self.docling_parser.documents_to_langchain(
+                    template_file,
+                    source_name=Path(template_file).stem
+                )
+                
+                all_documents.extend(docs)
+            
+            if not all_documents:
+                logger.warning("Нет документов для индексирования")
+                return False
+            
+            # Чанкируем
+            logger.info(f"  Чанкирование {len(all_documents)} документов...")
+            chunks = self.chunking_pipeline.process_pipeline(
+                all_documents,
+                merge_small=True,
+                add_context=True
+            )
+            
+            # Добавляем в Vector Store
+            logger.info(f"  Добавление {len(chunks)} чанков в Vector Store...")
+            success = self.vector_store.add_documents(chunks, batch_size=32)
+            
+            if success:
+                logger.info(f"✅ Индексирование завершено: {len(chunks)} чанков")
+                return True
+            else:
+                logger.error("❌ Ошибка добавления в Vector Store")
+                return False
+        
+        except Exception as e:
+            logger.error(f"❌ Ошибка индексирования: {e}")
+            return False
+    
+    def extract_info_with_rag(self, email_text: str, email_subject: str, 
+                             attachments: list = None) -> Dict:
+        """
+        Извлечение информации с использованием RAG для лучшего анализа
+        
+        Использует похожие договоры из базы как контекст для LLM анализа
+        
+        Args:
+            email_text: Текст письма
+            email_subject: Тема письма
+            attachments: Вложения письма
+        
+        Returns:
+            Словарь с информацией о документе
+        """
+        if not self.rag_enabled:
+            logger.warning("RAG не включен, используется базовый анализ")
+            return self.extract_info(email_text, email_subject, attachments)
+        
+        try:
+            logger.info("[RAG] Анализ с использованием Advanced RAG...")
+            
+            # Шаг 1: Извлекаем текст документа
+            contract_text = self.extract_text_from_attachments(attachments)
+            
+            if not contract_text.strip():
+                contract_text = email_text
+            
+            # Обрезаем для LLM
+            if len(contract_text) > 12000:
+                full_text = contract_text[:8000] + "\n\n...[пропуск]...\n\n" + contract_text[-4000:]
+            else:
+                full_text = contract_text
+            
+            # Шаг 2: Pre-Retrieval обработка запроса
+            query = f"Тип документа и ключевые условия: {email_subject}"
+            processed_query = self.pre_retrieval.process_query(
+                query,
+                method="expansion"
+            )
+            
+            logger.info(f"  Pre-Retrieval: создано {len(processed_query['variants'])} вариантов запроса")
+            
+            # Шаг 3: Поиск похожих договоров в базе
+            search_queries = self.pre_retrieval.get_search_queries(processed_query)
+            search_results = self.vector_store.search_multiple(search_queries, top_k=5)
+            
+            # Объединяем результаты поиска
+            all_results = []
+            for results in search_results.values():
+                all_results.extend([doc for doc, _ in results])
+            
+            logger.info(f"  Поиск: найдено {len(all_results)} похожих документов")
+            
+            # Шаг 4: Post-Retrieval обработка
+            if all_results:
+                final_docs = self.post_retrieval.process(
+                    all_results,
+                    query=query,
+                    top_k=3,
+                    strategies=["rerank", "summary", "fusion"]
+                )
+                
+                context = self.post_retrieval.get_final_context(final_docs, max_tokens=1000)
+            else:
+                context = ""
+            
+            logger.info(f"  Post-Retrieval: подготовлен контекст ({len(context)} символов)")
+            
+            # Шаг 5: LLM анализ с контекстом
+            if context:
+                enhanced_prompt = f"""Ты помощник юриста. Проанализируй следующий договор используя похожие договоры как контекст.
+
+КОНТЕКСТ (похожие договоры):
+{context}
+
+АНАЛИЗИРУЕМЫЙ ДОГОВОР:
+{full_text}
+
+{self._get_extraction_prompt()}"""
+            else:
+                enhanced_prompt = f"""Ты помощник юриста. Проанализируй следующий договор:
+
+{full_text}
+
+{self._get_extraction_prompt()}"""
+            
+            # Отправляем в LLM
+            if self.llm_client:
+                response = self.llm_client(
+                    enhanced_prompt,
+                    max_tokens=800,
+                    temperature=0.01,
+                    top_p=0.9,
+                    echo=False
+                )
+                
+                if isinstance(response, dict):
+                    result_text = response['choices'][0].get('text', '').strip()
+                else:
+                    result_text = str(response).strip()
+                
+                logger.info(f"[DEBUG] LLM output (первые 300 симв): {result_text[:300]}")
+                
+                # Парсим JSON результат
+                return self._parse_llm_response(result_text, email_subject)
+            else:
+                logger.warning("LLM client не доступен")
+                return self._extract_simple(full_text, email_subject)
+        
+        except Exception as e:
+            logger.error(f"❌ Ошибка RAG анализа: {e}")
+            return self.extract_info(email_text, email_subject, attachments)
+    
+    def _get_extraction_prompt(self) -> str:
+        """Получение промпта для извлечения информации"""
+        return """Требуемый JSON-формат (строго):
+{
+  "document_type": "(Договор|Акт|Доп.соглашение|Другое)",
+  "brief_description": "(Развёрнутое резюме 3-5 предложений, не более 600 символов)",
+  "summary": "(Подробное описание)",
+  "responsible_person": "(ФИО или организация)",
+  "deadline": "(дата или срок)",
+  "amount": "(сумма и валюта)"
+}"""
+    
+    def _parse_llm_response(self, result_text: str, email_subject: str) -> Dict:
+        """Парсинг ответа LLM"""
+        try:
+            # Ищем JSON в тексте
+            start = result_text.find('{')
+            end = result_text.rfind('}')
+            
+            if start != -1 and end != -1:
+                json_str = result_text[start:end+1]
+                json_str = json_str.replace('```json', '').replace('```', '').strip()
+                data = json.loads(json_str)
+            else:
+                data = {}
+        except:
+            data = {}
+        
+        # Применяем те же правила очистки что и раньше
+        brief = str(data.get('brief_description', '')).strip()
+        if not brief:
+            brief = str(data.get('summary', '')).strip()
+        
+        return {
+            'document_type': self._normalize_doc_type(data.get('document_type', 'Договор')),
+            'brief_description': brief[:1200] if brief else '',
+            'description': str(data.get('summary', '')).strip()[:2000],
+            'responsible_person': str(data.get('responsible_person', 'Не указано')).strip(),
+            'deadline': str(data.get('deadline', 'Не указан')).strip(),
+            'amount': str(data.get('amount', 'Не указана')).strip()
+        }

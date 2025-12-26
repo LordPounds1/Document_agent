@@ -30,9 +30,9 @@ def check_email_config():
     return True
 
 class DocumentProcessingAgent:
-    """Главный агент обработки документов"""
+    """Главный агент обработки документов с поддержкой Advanced RAG"""
     
-    def __init__(self, test_mode: bool = False):
+    def __init__(self, test_mode: bool = False, enable_rag: bool = False):
         # Настройка логирования
         setup_logger(Config.LOG_LEVEL)
         self.logger = logging.getLogger(__name__)
@@ -41,12 +41,22 @@ class DocumentProcessingAgent:
         # Инициализация компонентов
         self.email_agent = EmailAgent()
         
-        # Проверяем модель
+        # Инициализация обработчика документов с RAG
         if Config.MODEL_PATH and Config.MODEL_PATH != "None":
-            self.document_processor = DocumentProcessor(Config.MODEL_PATH)
+            self.document_processor = DocumentProcessor(
+                model_path=Config.MODEL_PATH,
+                enable_rag=enable_rag
+            )
             self.logger.info(f"Используется модель: {Config.MODEL_PATH}")
+            
+            if enable_rag and self.document_processor.rag_enabled:
+                self.logger.info("✅ Advanced RAG включен")
+                # Индексируем шаблоны при инициализации
+                self._index_templates()
+            else:
+                self.logger.info("ℹ️ Advanced RAG отключен (базовый режим)")
         else:
-            self.document_processor = DocumentProcessor()
+            self.document_processor = DocumentProcessor(enable_rag=False)
             self.logger.warning("Модель не указана, используется простой парсер")
         
         self.excel_manager = ExcelManager()
@@ -54,13 +64,60 @@ class DocumentProcessingAgent:
         
         self.logger.info("Агент инициализирован")
         self.logger.info(f"Загружено шаблонов: {len(Config.TEMPLATES)}")
-        
-        for name, template in Config.TEMPLATES.items():
-            self.logger.debug(f"Шаблон '{name}': {len(template['content'])} символов")
     
-    def process_test_email(self):
-        """Обработка тестового письма"""
-        # Базовый тестовый email; заменим тело/тему реальным шаблоном, если он доступен
+    def _index_templates(self):
+        """Индексирование шаблонов для RAG"""
+        try:
+            self.logger.info("📚 Индексирование шаблонов для RAG...")
+            
+            # Получаем пути к файлам шаблонов
+            templates_dir = Config.TEMPLATES_DIR
+            
+            if not templates_dir.exists():
+                self.logger.warning(f"Папка шаблонов не найдена: {templates_dir}")
+                return False
+            
+            template_files = list(templates_dir.glob("*"))
+            
+            if not template_files:
+                self.logger.warning("Нет файлов шаблонов для индексирования")
+                return False
+            
+            # Фильтруем по расширениям
+            supported_ext = {'.docx', '.doc', '.pdf', '.txt'}
+            template_files = [f for f in template_files if f.suffix.lower() in supported_ext]
+            
+            if template_files:
+                success = self.document_processor.index_templates(
+                    [str(f) for f in template_files]
+                )
+                
+                if success:
+                    self.logger.info(f"✅ Успешно индексировано {len(template_files)} шаблонов")
+                    return True
+                else:
+                    self.logger.warning("❌ Ошибка индексирования шаблонов")
+                    return False
+            else:
+                self.logger.warning("Нет поддерживаемых файлов шаблонов")
+                return False
+        
+        except Exception as e:
+            self.logger.error(f"❌ Ошибка при индексировании шаблонов: {e}")
+            return False
+    
+    def process_test_email(self, use_rag: bool = None):
+        """
+        Обработка тестового письма
+        
+        Args:
+            use_rag: Использовать ли RAG анализ (если None, используется по умолчанию)
+        """
+        # По умолчанию используем RAG если он доступен
+        if use_rag is None:
+            use_rag = self.document_processor.rag_enabled
+        
+        # Базовый тестовый email
         test_email = {
             'id': 'test_001',
             'subject': 'Тестовый договор',
@@ -71,7 +128,7 @@ class DocumentProcessingAgent:
             'raw': None
         }
 
-        # Используем уже загруженные шаблоны из Config.TEMPLATES (49 шаблонов)
+        # Используем уже загруженные шаблоны из Config.TEMPLATES
         try:
             if hasattr(Config, 'TEMPLATES') and Config.TEMPLATES:
                 # Ищем непустые шаблоны (контент >100 символов)
@@ -87,18 +144,28 @@ class DocumentProcessingAgent:
                     test_email['attachments'] = []
                     self.logger.info(f"[TEMPLATE] Тест использует шаблон: {name}")
                 else:
-                    self.logger.warning("⚠️ Загруженные шаблоны слишком маленькие — использую стандартный тест")
+                    self.logger.warning("⚠️ Загруженные шаблоны слишком маленькие")
         except Exception as e:
             self.logger.warning(f"⚠️ Ошибка загрузки шаблонов: {e}")
         
-        self.logger.info("[TEST] Обработка тестового письма...")
+        self.logger.info(f"[TEST] Обработка тестового письма (RAG: {use_rag})...")
         
         try:
             # Извлечение информации
-            doc_info = self.document_processor.extract_info(
-                email_text=test_email['body'],
-                email_subject=test_email['subject']
-            )
+            if use_rag and self.document_processor.rag_enabled:
+                self.logger.info("[RAG] Используется Advanced RAG анализ")
+                doc_info = self.document_processor.extract_info_with_rag(
+                    email_text=test_email['body'],
+                    email_subject=test_email['subject'],
+                    attachments=test_email.get('attachments')
+                )
+            else:
+                self.logger.info("[BASIC] Используется базовый анализ")
+                doc_info = self.document_processor.extract_info(
+                    email_text=test_email['body'],
+                    email_subject=test_email['subject'],
+                    attachments=test_email.get('attachments')
+                )
             
             self.logger.info("[RESULTS] Результаты анализа:")
             self.logger.info(f"  Тип документа: {doc_info.get('document_type', 'неизвестно')}")
@@ -107,8 +174,7 @@ class DocumentProcessingAgent:
             self.logger.info(f"  Срок: {doc_info.get('deadline', 'Не указан')}")
             self.logger.info(f"  Сумма: {doc_info.get('amount', 'Не указана')}")
             
-            # Для тестов: ТОЛЬКО создаём отдельный файл договора в contracts/
-            # НЕ добавляем в documents.xlsx (это для реальных писем из почты)
+            # Сохраняем договор
             reg_number = self.contract_manager.create_contract_file({
                 **test_email,
                 **doc_info,
@@ -124,18 +190,20 @@ class DocumentProcessingAgent:
                 return False
                 
         except Exception as e:
-            self.logger.error(f"❌ Ошибка обработки тестового письма: {e}")
+            self.logger.error(f"❌ Ошибка обработки тестового письма: {e}", exc_info=True)
             return False
     
-    def check_emails(self):
+    def check_emails(self, use_rag: bool = None):
         """Проверка новых писем"""
-        self.logger.info("📭 Проверка новых писем...")
+        if use_rag is None:
+            use_rag = self.document_processor.rag_enabled
+        
+        self.logger.info(f"📭 Проверка новых писем (RAG: {use_rag})...")
         
         # Подключаемся к почте
         if not self.email_agent.connect():
             self.logger.error("❌ Не удалось подключиться к почте")
             self.logger.info("📝 Проверьте настройки в .env файле")
-            self.logger.info("📝 Запустите: python setup_email.py")
             return
         
         try:
@@ -241,24 +309,16 @@ class DocumentProcessingAgent:
 def main():
     """Точка входа"""
     
-    parser = argparse.ArgumentParser(description='Агент обработки документов')
+    parser = argparse.ArgumentParser(description='Агент обработки документов с Advanced RAG')
     parser.add_argument('--once', action='store_true', help='Однократный запуск')
     parser.add_argument('--stats', action='store_true', help='Показать статистику')
     parser.add_argument('--download-model', action='store_true', help='Скачать модель')
-    parser.add_argument('--setup-email', action='store_true', help='Настроить почту')
     parser.add_argument('--test', action='store_true', help='Тестовый режим (без реальной почты)')
+    parser.add_argument('--rag', action='store_true', help='Включить Advanced RAG анализ')
+    parser.add_argument('--index-templates', action='store_true', help='Индексировать шаблоны для RAG')
     parser.add_argument('--list-templates', action='store_true', help='Показать загруженные шаблоны')
     
     args = parser.parse_args()
-    
-    if args.setup_email:
-        try:
-            from setup_email import setup_email
-            setup_email()
-        except ImportError:
-            print("❌ Файл setup_email.py не найден")
-            print("📝 Создайте файл setup_email.py для настройки почты")
-        return
     
     if args.download_model:
         try:
@@ -269,7 +329,7 @@ def main():
             print("📝 Убедитесь, что файл models/download_model.py существует")
         return
     
-    if not any([args.download_model, args.setup_email, args.list_templates, args.stats]):
+    if not any([args.download_model, args.index_templates, args.list_templates, args.stats]):
         if not check_email_config():
             sys.exit(1)
     
@@ -284,7 +344,16 @@ def main():
             print(f"  Предпросмотр: {template['content'][:100]}...")
         return
     
-    agent = DocumentProcessingAgent(test_mode=args.test)
+    agent = DocumentProcessingAgent(test_mode=args.test, enable_rag=args.rag)
+    
+    if args.index_templates:
+        print("\n📚 Индексирование шаблонов...")
+        success = agent._index_templates()
+        if success:
+            print("✅ Индексирование завершено успешно!")
+        else:
+            print("❌ Ошибка индексирования")
+        return
     
     if args.stats:
         stats = agent.excel_manager.get_statistics()
@@ -297,6 +366,14 @@ def main():
             print("\n📋 По типам:")
             for doc_type, count in stats.get('by_type', {}).items():
                 print(f"  {doc_type}: {count}")
+        
+        if agent.document_processor.rag_enabled:
+            print("\n🤖 RAG Status:")
+            print("  ✅ Advanced RAG включен")
+            if agent.document_processor.vector_store:
+                vs_stats = agent.document_processor.vector_store.get_stats()
+                print(f"  Vector Store: {vs_stats.get('store_type')}")
+                print(f"  Индекс размер: {vs_stats.get('index_size')}")
         return
     
     if args.once or args.test:
