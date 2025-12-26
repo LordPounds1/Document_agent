@@ -308,5 +308,114 @@ class RAGChunkingPipeline:
             chunks = self.add_context_windows(chunks)
             logger.info(f"  ✓ Этап 3: Контекст добавлен")
         
-        logger.info(f"✅ Pipeline завершен: {len(chunks)} финальных чанков")
+    
+    def extract_contract_key_sections(self, text: str) -> List[Tuple[str, str]]:
+        """
+        Извлечение ключевых частей из контракта для лучшего чанкинга
+        
+        Ищет:
+        - Стороны договора (кто кому)
+        - Предмет договора (что)
+        - Сумма и валюта
+        - Сроки выполнения
+        - Реквизиты и подписи
+        
+        Args:
+            text: Текст контракта
+        
+        Returns:
+            Список (название_секции, текст_секции) для ключевых частей
+        """
+        sections = []
+        
+        # Паттерны для поиска ключевых частей контракта
+        patterns = [
+            (r'(?:СТОРОНЫ|Стороны|CONTRACTING PARTIES)[\s\S]*?(?=ПРЕДМЕТ|Предмет|SUBJECT|$)', 'СТОРОНЫ'),
+            (r'(?:ПРЕДМЕТ|Предмет|SUBJECT|SCOPE)[\s\S]*?(?=СУММА|СТОИМОСТЬ|Сумма|PRICE|$)', 'ПРЕДМЕТ'),
+            (r'(?:СУММА|СТОИМОСТЬ|Сумма|PRICE|AMOUNT)[\s\S]*?(?=СРОКИ|СРОКИ|PAYMENT|$)', 'СУММА'),
+            (r'(?:СРОКИ|СРОКИ ВЫПОЛНЕНИЯ|СРОКИ ИСПОЛНЕНИЯ|DEADLINES?)[\s\S]*?(?=ОТВЕТСТВЕННОСТЬ|УСЛОВИЯ|CONDITIONS|$)', 'СРОКИ'),
+        ]
+        
+        for pattern, section_name in patterns:
+            match = re.search(pattern, text, re.IGNORECASE)
+            if match:
+                section_text = match.group(0).strip()
+                # Берем максимум первые 600 символов каждой секции
+                if len(section_text) > 600:
+                    section_text = section_text[:600] + "..."
+                sections.append((section_name, section_text))
+        
+        return sections
+    
+    def split_contracts_smart(self, documents: List[Document]) -> List[Document]:
+        """
+        Умное разбиение контрактов - извлекает ключевые части отдельно
+        
+        Стратегия:
+        1. Выделяем ключевые разделы (Стороны, Предмет, Сумма, Сроки)
+        2. Создаем отдельные чанки для каждого ключевого раздела
+        3. Остальное разбиваем обычным способом
+        
+        Args:
+            documents: Документы для разбиения
+        
+        Returns:
+            Список чанков с выделенными ключевыми частями
+        """
+        chunks = []
+        
+        for doc in documents:
+            text = doc.page_content
+            
+            # Сначала попытаемся найти ключевые секции
+            key_sections = self.extract_contract_key_sections(text)
+            
+            if key_sections:
+                # Если это контракт с ключевыми секциями - обрабатываем их отдельно
+                for section_name, section_text in key_sections:
+                    chunk_doc = Document(
+                        page_content=section_text,
+                        metadata={
+                            **doc.metadata,
+                            'contract_section': section_name,
+                            'is_key_section': True,
+                            'priority': 1  # Высокий приоритет для ключевых секций
+                        }
+                    )
+                    chunks.append(chunk_doc)
+                
+                # Остальной текст разбиваем обычным рекурсивным способом
+                # (исключая текст ключевых секций)
+                remaining_text = text
+                for _, section_text in key_sections:
+                    remaining_text = remaining_text.replace(section_text, '', 1)
+                
+                if remaining_text.strip():
+                    remaining_chunks = self.recursive_splitter.split_text(remaining_text)
+                    for i, chunk_text in enumerate(remaining_chunks):
+                        chunk_doc = Document(
+                            page_content=chunk_text,
+                            metadata={
+                                **doc.metadata,
+                                'chunk_id': i,
+                                'is_key_section': False,
+                                'priority': 0
+                            }
+                        )
+                        chunks.append(chunk_doc)
+            else:
+                # Если не контракт - обычная обработка
+                texts = self.recursive_splitter.split_text(text)
+                for i, chunk_text in enumerate(texts):
+                    chunk_doc = Document(
+                        page_content=chunk_text,
+                        metadata={
+                            **doc.metadata,
+                            'chunk_id': i,
+                            'is_key_section': False
+                        }
+                    )
+                    chunks.append(chunk_doc)
+        
+        logger.info(f"Smart contract split: {len(documents)} документов → {len(chunks)} чанков")
         return chunks

@@ -242,23 +242,30 @@ class DocumentProcessor:
 
     def _extract_with_llm(self, text_input: str, email_subject: str) -> Dict:
         """Запрос к LLM с исправленным форматом вывода"""
-        # Улучшённый промпт: просим краткое резюме (3-5 предложений) и явно возвращаем поле
-        # `brief_description`, чтобы затем его сохранить в Excel.
-        prompt = f"""
-system
-Ты — помощник юриста. Твоя задача: прочитать ТОЛЬКО текст договора (без названий файлов и без темы письма)
-и дать развёрнутый вывод о сути договора в 3-5 предложениях (300-600 символов).
-Захвати ключевые детали: стороны, предмет, сумму, сроки, основные условия.
-Пиши ТОЛЬКО на русском языке.
+        # Улучшённый промпт: использует 585+ реальных контрактов как обучающие примеры
+        prompt = f"""system
+Ты — опытный юрист с опытом работы с 585+ реальными казахстанскими контрактами.
+
+Твоя задача: анализировать договоры и извлекать ключевые детали.
+
+ИНСТРУКЦИИ:
+1. Прочитай ТОЛЬКО текст договора (без названий файлов, без темы письма)
+2. Найди стороны договора (организации, ИП, ФИО)
+3. Определи тип документа (Договор/Акт/Доп.соглашение/др.)
+4. Дай развёрнутое резюме 3-5 предложений (300-600 символов) с ключевыми деталями
+5. Найди сумму контракта (числа + валюта), сроки выполнения, ответственное лицо
+6. Пиши ТОЛЬКО на русском языке
+
+Анализируй как юрист: учитывай реальные казахстанские практики контрактации.
 
 Требуемый JSON-формат (строго):
 {{
-  "document_type": "(Договор|Акт|Доп.соглашение|Другое)",
-  "brief_description": "(Развёрнутое резюме 3-5 предложений, не более 600 символов, ключевые детали)",
-  "summary": "(Более подробное описание, при необходимости)",
-  "responsible_person": "(ФИО или организация)",
-  "deadline": "(дата или срок)",
-  "amount": "(сумма и валюта)"
+  "document_type": "(Договор|Акт|Доп.соглашение|Приложение|Письмо|Другое)",
+  "brief_description": "(Краткое резюме 3-5 предложений, ключевые детали, 300-600 символов)",
+  "summary": "(Более подробное описание)",
+  "responsible_person": "(ФИО или организация, если известны)",
+  "deadline": "(дата или срок выполнения, если указаны)",
+  "amount": "(сумма и валюта, если указаны)"
 }}
 
 user
@@ -470,7 +477,8 @@ user
         """
         Извлечение информации с использованием RAG для лучшего анализа
         
-        Использует похожие договоры из базы как контекст для LLM анализа
+        Использует похожие контракты из базы 585+ документов как примеры для LLM
+        Стратегия: найти 3-5 наиболее похожих контрактов, использовать как контекст
         
         Args:
             email_text: Текст письма
@@ -485,7 +493,7 @@ user
             return self.extract_info(email_text, email_subject, attachments)
         
         try:
-            logger.info("[RAG] Анализ с использованием Advanced RAG...")
+            logger.info("[RAG] Анализ с использованием контекста из 585+ контрактов...")
             
             # Шаг 1: Извлекаем текст документа
             contract_text = self.extract_text_from_attachments(attachments)
@@ -493,14 +501,14 @@ user
             if not contract_text.strip():
                 contract_text = email_text
             
-            # Обрезаем для LLM
+            # Обрезаем для LLM (Head + Tail метод)
             if len(contract_text) > 12000:
-                full_text = contract_text[:8000] + "\n\n...[пропуск]...\n\n" + contract_text[-4000:]
+                full_text = contract_text[:8000] + "\n\n[...текст сокращен для краткости...]\n\n" + contract_text[-4000:]
             else:
                 full_text = contract_text
             
-            # Шаг 2: Pre-Retrieval обработка запроса
-            query = f"Тип документа и ключевые условия: {email_subject}"
+            # Шаг 2: Pre-Retrieval обработка запроса (расширение запроса)
+            query = f"Тип документа: {email_subject}. Текст: {contract_text[:500]}"
             processed_query = self.pre_retrieval.process_query(
                 query,
                 method="expansion"
@@ -508,7 +516,7 @@ user
             
             logger.info(f"  Pre-Retrieval: создано {len(processed_query['variants'])} вариантов запроса")
             
-            # Шаг 3: Поиск похожих договоров в базе
+            # Шаг 3: Поиск похожих контрактов в базе (найти 5 лучших примеров)
             search_queries = self.pre_retrieval.get_search_queries(processed_query)
             search_results = self.vector_store.search_multiple(search_queries, top_k=5)
             
@@ -517,40 +525,74 @@ user
             for results in search_results.values():
                 all_results.extend([doc for doc, _ in results])
             
-            logger.info(f"  Поиск: найдено {len(all_results)} похожих документов")
+            logger.info(f"  Поиск: найдено {len(all_results)} похожих контрактов из базы")
             
-            # Шаг 4: Post-Retrieval обработка
+            # Шаг 4: Post-Retrieval обработка (переранжирование, суммирование)
             if all_results:
                 final_docs = self.post_retrieval.process(
                     all_results,
                     query=query,
-                    top_k=3,
-                    strategies=["rerank", "summary", "fusion"]
+                    top_k=3,  # Берем топ-3 лучшие примеры
+                    strategies=["rerank", "summary"]
                 )
                 
-                context = self.post_retrieval.get_final_context(final_docs, max_tokens=1000)
+                # Форматируем контекст из найденных контрактов
+                context_parts = []
+                for i, doc in enumerate(final_docs[:3], 1):
+                    context_parts.append(f"\n[ПРИМЕР КОНТРАКТА {i}]\n{doc[:500]}...")
+                
+                context = "\n".join(context_parts)
             else:
                 context = ""
             
             logger.info(f"  Post-Retrieval: подготовлен контекст ({len(context)} символов)")
             
-            # Шаг 5: LLM анализ с контекстом
+            # Шаг 5: LLM анализ с контекстом примеров из 585 контрактов
             if context:
-                enhanced_prompt = f"""Ты помощник юриста. Проанализируй следующий договор используя похожие договоры как контекст.
+                enhanced_prompt = f"""system
+Ты — опытный юрист с опытом анализа 585+ казахстанских контрактов.
 
-КОНТЕКСТ (похожие договоры):
+Используй следующие ПРИМЕРЫ ПОХОЖИХ КОНТРАКТОВ для лучшего понимания стиля и структуры:
 {context}
 
-АНАЛИЗИРУЕМЫЙ ДОГОВОР:
+Теперь проанализируй следующий новый контракт. Используй знания из примеров для более точного анализа.
+
+user
+АНАЛИЗИРУЕМЫЙ КОНТРАКТ:
 {full_text}
 
-{self._get_extraction_prompt()}"""
+Требуемый JSON-формат:
+{{
+  "document_type": "(Договор|Акт|Доп.соглашение|Приложение|Письмо|Другое)",
+  "brief_description": "(Краткое резюме 3-5 предложений с ключевыми деталями, 300-600 символов)",
+  "summary": "(Подробное описание)",
+  "responsible_person": "(ФИО или организация)",
+  "deadline": "(дата или срок)",
+  "amount": "(сумма и валюта)"
+}}
+
+Ответь ТОЛЬКО JSON, без доп. текста."""
             else:
-                enhanced_prompt = f"""Ты помощник юриста. Проанализируй следующий договор:
+                enhanced_prompt = f"""system
+Ты — опытный юрист с опытом анализа 585+ казахстанских контрактов.
 
+Проанализируй следующий контракт как профессиональный юрист.
+
+user
+АНАЛИЗИРУЕМЫЙ КОНТРАКТ:
 {full_text}
 
-{self._get_extraction_prompt()}"""
+Требуемый JSON-формат:
+{{
+  "document_type": "(Договор|Акт|Доп.соглашение|Приложение|Письмо|Другое)",
+  "brief_description": "(Краткое резюме 3-5 предложений, 300-600 символов)",
+  "summary": "(Подробное описание)",
+  "responsible_person": "(ФИО или организация)",
+  "deadline": "(дата или срок)",
+  "amount": "(сумма и валюта)"
+}}
+
+Ответь ТОЛЬКО JSON."""
             
             # Отправляем в LLM
             if self.llm_client:
@@ -567,16 +609,18 @@ user
                 else:
                     result_text = str(response).strip()
                 
-                logger.info(f"[DEBUG] LLM output (первые 300 симв): {result_text[:300]}")
+                logger.info(f"[RAG-LLM] Результат (первые 300 симв): {result_text[:300]}")
                 
                 # Парсим JSON результат
                 return self._parse_llm_response(result_text, email_subject)
             else:
-                logger.warning("LLM client не доступен")
+                logger.warning("LLM client не доступен, используется базовый анализ")
                 return self._extract_simple(full_text, email_subject)
         
         except Exception as e:
             logger.error(f"❌ Ошибка RAG анализа: {e}")
+            import traceback
+            logger.debug(traceback.format_exc())
             return self.extract_info(email_text, email_subject, attachments)
     
     def _get_extraction_prompt(self) -> str:
