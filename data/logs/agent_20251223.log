@@ -1,0 +1,9 @@
+2025-12-23 19:59:34 - agents.document_processor - ERROR - Ошибка загрузки модели: Failed to load model from file: ./models/saiga_mistral_7b_q4.gguf
+2025-12-23 19:59:35 - agents.excel_manager - INFO - Создан новый файл: ./data/documents.xlsx
+2025-12-23 19:59:35 - __main__ - INFO - Агент инициализирован
+2025-12-23 19:59:35 - __main__ - INFO - Загружено шаблонов: 2
+2025-12-23 19:59:35 - __main__ - INFO - Шаблон 'аренда общежития №15': 107 символов
+2025-12-23 19:59:35 - __main__ - INFO - Шаблон 'Типовой общага №18': 105 символов
+2025-12-23 19:59:35 - __main__ - INFO - Проверка новых писем...
+2025-12-23 19:59:37 - agents.email_agent - ERROR - Ошибка подключения к почте: b'[AUTHENTICATIONFAILED] Invalid credentials (Failure)'
+2025-12-23 19:59:37 - __main__ - INFO - Новых писем нет

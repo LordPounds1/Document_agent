@@ -1,0 +1,23 @@
+# Python
+__pycache__/
+*.py[cod]
+*.so
+.Python
+env/
+venv/
+.env
+*.egg-info/
+dist/
+build/
+
+# Данные
+data/documents.xlsx
+models/*.gguf
+models/*.bin
+*.pth
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo

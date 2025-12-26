@@ -1,0 +1,34 @@
+# Основные зависимости
+pandas>=2.0.0
+openpyxl>=3.1.0
+python-dotenv>=1.0.0
+schedule>=1.2.0
+python-dateutil>=2.8.2
+
+# Работа с почтой
+imapclient>=2.3.0
+email-validator>=2.0.0
+
+# Работа с Word документами
+python-docx>=0.8.11
+docx2txt>=0.8
+pywin32>=306  # Только для Windows, для чтения .doc файлов
+
+# Работа с PDF
+PyPDF2>=3.0.0
+pdfplumber>=0.9.0
+
+# LLM интеграция
+llama-cpp-python>=0.2.0  # Локальная модель (основной режим)
+requests>=2.31.0  # Для GigaChat API (опционально, если USE_GIGACHAT=true)
+transformers>=4.35.0  # Опционально
+torch>=2.0.0  # Опционально
+sentencepiece>=0.1.99  # Опционально
+
+# Векторные embeddings и RAG
+sentence-transformers>=2.2.0  # Для векторных представлений шаблонов
+scikit-learn>=1.3.0  # Fallback для TF-IDF embeddings
+numpy>=1.24.0  # Для работы с векторами
+
+# Вспомогательные
+tqdm>=4.66.0
