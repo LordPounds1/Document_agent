@@ -6,7 +6,9 @@
 
 ## � Демонстрация работы
 
-[![Видео-демонстрация](https://img.shields.io/badge/📹_Смотреть_демо-Google_Drive-4285F4?style=for-the-badge&logo=googledrive&logoColor=white)](https://drive.google.com/file/d/1vsVoWvvZyAyWx_FrWVmng8Cb5PmVuK_p/view?usp=sharing)
+https://github.com/user-attachments/assets/demo.mp4
+
+https://github.com/LordPounds1/Document_agent/raw/main/demo.mp4
 
 > 🎥 **Скринкаст**: полный цикл работы агента — от подключения к почте до создания Excel-отчёта
 
