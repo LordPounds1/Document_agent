@@ -6,11 +6,11 @@
 
 ## � Демонстрация работы
 
-https://github.com/user-attachments/assets/demo.mp4
-
-https://github.com/LordPounds1/Document_agent/raw/main/demo.mp4
+<video src="https://github.com/LordPounds1/Document_agent/raw/main/demo.mp4" controls width="100%"></video>
 
 > 🎥 **Скринкаст**: полный цикл работы агента — от подключения к почте до создания Excel-отчёта
+>
+> 📥 [Скачать видео](./demo.mp4) если не воспроизводится
 
 ---
 
