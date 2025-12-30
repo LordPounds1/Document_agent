@@ -1,48 +1,66 @@
-# Основные зависимости
+# Requirements for Document Processing Agent (Simplified)
+# Python 3.10+
+
+# Core dependencies
+python-dotenv==1.0.0
+
+# LLM (локальная модель)
+llama-cpp-python>=0.2.27  # GPU: CMAKE_ARGS="-DLLAMA_CUBLAS=on" pip install
+
+# Document processing
+docx2txt==0.8
+openpyxl==3.1.2  # Excel файлы
 pandas>=2.0.0
-openpyxl>=3.1.0
-python-dotenv>=1.0.0
-schedule>=1.2.0
-python-dateutil>=2.8.2
 
-# Работа с почтой
-imapclient>=2.3.0
-email-validator>=2.0.0
+# Web interface
+streamlit>=1.28.0
 
-# Работа с документами
-python-docx>=0.8.11
-docx2txt>=0.8
-pywin32>=306  # Только для Windows, для чтения .doc файлов
-
-# Парсинг документов (Docling)
-docling>=2.0.0  # Open-source комбайн для парсинга документов
-
-# Работа с PDF
+# PDF support (optional)
 PyPDF2>=3.0.0
-pdfplumber>=0.9.0
 
-# LLM интеграция и LangChain
-llama-cpp-python>=0.2.0  # Локальная модель (основной режим)
-langchain>=0.1.0  # LangChain фреймворк
-langchain-community>=0.0.10  # LangChain community integrations
-requests>=2.31.0
-transformers>=4.35.0  # Опционально
-torch>=2.0.0  # Опционально
-sentencepiece>=0.1.99  # Опционально
+# Encryption for templates
+cryptography>=41.0.0
 
-# Векторные embeddings и RAG
-sentence-transformers>=2.2.0  # Для embeddings документов
-scikit-learn>=1.3.0  # Для TF-IDF и других алгоритмов
-numpy>=1.24.0  # Для работы с векторами
+# Email - используется встроенный imaplib
 
-# Vector Stores для RAG
-faiss-cpu>=1.7.4  # FAISS для локального хранения векторов (CPU версия)
-# faiss-gpu  # Если нужна GPU версия, раскомментировать
-chromadb>=0.4.0  # Alternative: Chroma для vector storage
+# ===================================
+# Для GPU ускорения llama-cpp-python:
+# pip uninstall llama-cpp-python
+# CMAKE_ARGS="-DLLAMA_CUBLAS=on" pip install llama-cpp-python --no-cache-dir
+# ===================================
+mypy==1.7.1
 
-# Reranking и Advanced RAG
-sentence-transformers[multilingual]>=2.2.0  # Для cross-encoder
-cohere>=5.0.0  # Опционально: для Cohere reranker API
+# Jupyter (for analysis)
+jupyter==1.0.0
+ipykernel==6.27.1
 
-# Вспомогательные
-tqdm>=4.66.0
+# ===================================
+# Installation notes
+# ===================================
+
+# For GPU support (CUDA 11.8+):
+# 1. Install PyTorch with CUDA:
+#    pip install torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cu118
+#
+# 2. Install llama-cpp-python with CUDA:
+#    CMAKE_ARGS="-DLLAMA_CUBLAS=on" pip install llama-cpp-python --force-reinstall --no-cache-dir
+#
+# 3. Install FAISS with GPU:
+#    pip install faiss-gpu
+#
+# For CPU only:
+# Just use: pip install -r requirements.txt
+
+# ===================================
+# Additional notes
+# ===================================
+
+# Model download:
+# Run: python models/download_model.py
+# Or manually download from HuggingFace:
+# - Llama-2-7B-Chat-GGUF (Q4_K_M): ~4 GB
+# - Mistral-7B-Instruct-GGUF (Q4_K_M): ~4 GB
+
+# Templates:
+# Place contract templates in templates/ folder
+# Supported formats: .docx, .txt

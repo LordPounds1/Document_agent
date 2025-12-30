@@ -1,0 +1,61 @@
+# Document Processing Agent - Docker Compose
+# Запуск: docker-compose up -d
+
+services:
+  document-agent:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: document-agent
+    ports:
+      - "8501:8501"
+    volumes:
+      # Модель LLM (монтируем снаружи, чтобы не включать в образ)
+      - ./models:/app/models:ro
+      # Шаблоны договоров
+      - ./templates:/app/templates:ro
+      # Данные (Excel отчёты)
+      - ./data:/app/data
+      # Логи
+      - ./logs:/app/logs
+    environment:
+      # Настройки LLM
+      - MODEL_CONTEXT_SIZE=2048
+      - MODEL_TEMPERATURE=0.1
+      - MODEL_N_GPU_LAYERS=0  # CPU only в Docker
+      - MODEL_MAX_TOKENS=512
+      # Настройки агента
+      - CHECK_INTERVAL_MINUTES=5
+      - LOG_LEVEL=INFO
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8501/_stcore/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+
+  # Опционально: версия с GPU (NVIDIA)
+  # Раскомментируйте, если есть NVIDIA GPU с Docker GPU support
+  # document-agent-gpu:
+  #   build:
+  #     context: .
+  #     dockerfile: Dockerfile.gpu
+  #   container_name: document-agent-gpu
+  #   ports:
+  #     - "8501:8501"
+  #   volumes:
+  #     - ./models:/app/models:ro
+  #     - ./templates:/app/templates:ro
+  #     - ./data:/app/data
+  #     - ./logs:/app/logs
+  #   environment:
+  #     - MODEL_N_GPU_LAYERS=-1  # Все слои на GPU
+  #   deploy:
+  #     resources:
+  #       reservations:
+  #         devices:
+  #           - driver: nvidia
+  #             count: 1
+  #             capabilities: [gpu]
+  #   restart: unless-stopped

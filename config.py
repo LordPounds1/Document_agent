@@ -1,197 +1,97 @@
+"""Конфигурация приложения Document Processing Agent"""
+
 import os
-import re
-import docx
-import docx2txt
-import unicodedata
 import logging
 from pathlib import Path
-from datetime import datetime
 from dotenv import load_dotenv
 
 load_dotenv()
 
 logger = logging.getLogger(__name__)
 
-def clean_password(password):
-    """Очистка пароля от невидимых символов и пробелов"""
-    if not password:
-        return password
-    # Удаляем все пробелы (обычные и неразрывные)
-    password = password.replace(' ', '').replace('\u00A0', '').replace('\u2009', '')
-    # Удаляем символы табуляции и переноса строки
-    password = password.replace('\t', '').replace('\n', '').replace('\r', '')
-    # Удаляем другие невидимые символы
-    password = ''.join(char for char in password if unicodedata.category(char)[0] != 'C' or char.isprintable())
-    return password.strip()
 
 class Config:
     """Конфигурация приложения"""
     
     # Пути
     BASE_DIR = Path(__file__).parent
-    DATA_DIR = BASE_DIR / "data"
     MODELS_DIR = BASE_DIR / "models"
     TEMPLATES_DIR = BASE_DIR / "templates"
-    LOGS_DIR = BASE_DIR / "data" / "logs"
+    DATA_DIR = BASE_DIR / "data"
+    LOGS_DIR = BASE_DIR / "logs"
     
-    # Почта IMAP (получение)
-    EMAIL_ADDRESS = os.getenv("EMAIL_ADDRESS", "").strip() if os.getenv("EMAIL_ADDRESS") else None
-    _raw_password = os.getenv("EMAIL_PASSWORD", "")
-    EMAIL_PASSWORD = clean_password(_raw_password) if _raw_password else None
-    IMAP_SERVER = os.getenv("IMAP_SERVER", "imap.gmail.com")
-    IMAP_PORT = int(os.getenv("IMAP_PORT", 993))
-    USE_SSL = os.getenv("USE_SSL", "true").lower() == "true"
-    
-    # Дополнительные настройки почты
-    EMAIL_FOLDER = os.getenv("EMAIL_FOLDER", "INBOX")  # Папка для мониторинга
-    
-    # LLM настройки - локальная модель
-    # Локальная модель (основной режим)
+    # LLM настройки
     MODEL_PATH = os.getenv("MODEL_PATH")
     if not MODEL_PATH or MODEL_PATH.lower() == "none":
-        # Автоматический поиск модели в папке models/
-        model_files = list(MODELS_DIR.glob("*.gguf"))
+        # Автоматический поиск модели
+        model_files = list(MODELS_DIR.glob("*.gguf")) if MODELS_DIR.exists() else []
         if model_files:
             MODEL_PATH = str(model_files[0])
-            logger.info(f"Автоматически найдена модель: {MODEL_PATH}")
-        else:
-            MODEL_PATH = None
-    elif MODEL_PATH and not Path(MODEL_PATH).exists():
-        logger.warning(f"Указанный путь к модели не существует: {MODEL_PATH}")
-        # Пробуем найти в папке models/
-        model_files = list(MODELS_DIR.glob("*.gguf"))
-        if model_files:
-            MODEL_PATH = str(model_files[0])
-            logger.info(f"Используется найденная модель: {MODEL_PATH}")
+            logger.info(f"Найдена модель: {MODEL_PATH}")
         else:
             MODEL_PATH = None
     
-    MODEL_TYPE = os.getenv("MODEL_TYPE", "gguf")
-    MODEL_CONTEXT_SIZE = int(os.getenv("MODEL_CONTEXT_SIZE", 4096))
+    MODEL_CONTEXT_SIZE = int(os.getenv("MODEL_CONTEXT_SIZE", 2048))
     MODEL_TEMPERATURE = float(os.getenv("MODEL_TEMPERATURE", 0.1))
+    MODEL_N_GPU_LAYERS = int(os.getenv("MODEL_N_GPU_LAYERS", -1))  # -1 = все слои на GPU
+    MODEL_MAX_TOKENS = int(os.getenv("MODEL_MAX_TOKENS", 512))
     
     # Excel
     EXCEL_FILE_PATH = os.getenv("EXCEL_FILE_PATH", str(DATA_DIR / "processed_documents.xlsx"))
-    EXCEL_SHEET_NAME = os.getenv("EXCEL_SHEET_NAME", "Документы")
     
     # Агент
     CHECK_INTERVAL_MINUTES = int(os.getenv("CHECK_INTERVAL_MINUTES", 5))
-    LOG_LEVEL = os.getenv("LOG_LEVEL", "DEBUG")
+    LOG_LEVEL = os.getenv("LOG_LEVEL", "INFO")
     
-    # Шаблоны - загружаем из папки templates/
-    TEMPLATES = {}
-    if TEMPLATES_DIR.exists():
-        from agents.template_manager import TemplateManager
-        try:
-            template_manager = TemplateManager(str(TEMPLATES_DIR))
-            TEMPLATES = template_manager.templates
-            if TEMPLATES:
-                logger.info(f"Загружено шаблонов: {len(TEMPLATES)}")
-            else:
-                logger.warning(f"Папка templates/ существует, но шаблоны не найдены")
-        except Exception as e:
-            logger.warning(f"Ошибка загрузки шаблонов: {e}")
-    
-    # Популярные почтовые сервисы (для автоопределения)
+    # Почтовые провайдеры
     EMAIL_PROVIDERS = {
-        'gmail.com': {
-            'imap': 'imap.gmail.com',
-            'smtp': 'smtp.gmail.com',
-            'port': 993,
-            'requires_app_password': True
-        },
-        'yandex.ru': {
-            'imap': 'imap.yandex.ru',
-            'smtp': 'smtp.yandex.ru',
-            'port': 993,
-            'requires_app_password': True
-        },
-        'yandex.kz': {
-            'imap': 'imap.yandex.ru',  # Важно: для yandex.kz тоже используется imap.yandex.ru!
-            'smtp': 'smtp.yandex.ru',
-            'port': 993,
-            'requires_app_password': True
-        },
-        'yandex.ua': {
-            'imap': 'imap.yandex.ru',
-            'smtp': 'smtp.yandex.ru',
-            'port': 993,
-            'requires_app_password': True
-        },
-        'yandex.by': {
-            'imap': 'imap.yandex.ru',
-            'smtp': 'smtp.yandex.ru',
-            'port': 993,
-            'requires_app_password': True
-        },
-        'mail.ru': {
-            'imap': 'imap.mail.ru',
-            'smtp': 'smtp.mail.ru',
-            'port': 993,
-            'requires_app_password': False
-        },
-        'rambler.ru': {
-            'imap': 'imap.rambler.ru',
-            'smtp': 'smtp.rambler.ru',
-            'port': 993,
-            'requires_app_password': False
-        },
-        'outlook.com': {
-            'imap': 'outlook.office365.com',
-            'smtp': 'smtp.office365.com',
-            'port': 993,
-            'requires_app_password': False
-        },
-        'hotmail.com': {
-            'imap': 'outlook.office365.com',
-            'smtp': 'smtp.office365.com',
-            'port': 993,
-            'requires_app_password': False
-        },
-        'yahoo.com': {
-            'imap': 'imap.mail.yahoo.com',
-            'smtp': 'smtp.mail.yahoo.com',
-            'port': 993,
-            'requires_app_password': True
-        }
+        'gmail.com': {'imap': 'imap.gmail.com', 'port': 993},
+        'googlemail.com': {'imap': 'imap.gmail.com', 'port': 993},
+        'yandex.ru': {'imap': 'imap.yandex.ru', 'port': 993},
+        'yandex.kz': {'imap': 'imap.yandex.ru', 'port': 993},
+        'yandex.com': {'imap': 'imap.yandex.com', 'port': 993},
+        'ya.ru': {'imap': 'imap.yandex.ru', 'port': 993},
+        'mail.ru': {'imap': 'imap.mail.ru', 'port': 993},
+        'inbox.ru': {'imap': 'imap.mail.ru', 'port': 993},
+        'list.ru': {'imap': 'imap.mail.ru', 'port': 993},
+        'bk.ru': {'imap': 'imap.mail.ru', 'port': 993},
+        'outlook.com': {'imap': 'outlook.office365.com', 'port': 993},
+        'hotmail.com': {'imap': 'outlook.office365.com', 'port': 993},
     }
     
     @classmethod
-    def detect_email_provider(cls, email_address: str) -> dict:
-        """Определение почтового провайдера по email адресу"""
+    def get_model_path(cls) -> str:
+        """Получение пути к модели"""
+        if cls.MODEL_PATH:
+            return cls.MODEL_PATH
+        
+        # Поиск в папке models
+        if cls.MODELS_DIR.exists():
+            model_files = list(cls.MODELS_DIR.glob("*.gguf"))
+            if model_files:
+                return str(model_files[0])
+        
+        return None
+    
+    @classmethod
+    def get_email_server(cls, email_address: str) -> dict:
+        """Получение настроек IMAP сервера по email"""
         if not email_address or '@' not in email_address:
-            return {
-                'imap': cls.IMAP_SERVER,
-                'smtp': 'smtp.gmail.com',
-                'port': cls.IMAP_PORT,
-                'requires_app_password': False
-            }
+            return {'imap': 'imap.gmail.com', 'port': 993}
         
         domain = email_address.split('@')[-1].lower()
         
-        # Сначала ищем точное совпадение
         if domain in cls.EMAIL_PROVIDERS:
             return cls.EMAIL_PROVIDERS[domain]
         
-        # Ищем частичное совпадение для субдоменов
-        for provider_domain, config in cls.EMAIL_PROVIDERS.items():
-            if domain.endswith('.' + provider_domain):
-                return config
-        
-        # Для Яндекса: yandex.kz, yandex.ua и т.д.
+        # Для Яндекса с разными доменами
         if 'yandex' in domain:
-            # Все домены Яндекса используют imap.yandex.ru
-            return {
-                'imap': 'imap.yandex.ru',
-                'smtp': 'smtp.yandex.ru',
-                'port': 993,
-                'requires_app_password': True
-            }
+            return {'imap': 'imap.yandex.ru', 'port': 993}
         
-        # Возвращаем настройки по умолчанию
-        return {
-            'imap': cls.IMAP_SERVER,
-            'smtp': 'smtp.gmail.com',
-            'port': cls.IMAP_PORT,
-            'requires_app_password': False
-        }
+        # По умолчанию пробуем imap.domain
+        return {'imap': f'imap.{domain}', 'port': 993}
+
+
+# Создаём директории при необходимости
+Config.DATA_DIR.mkdir(exist_ok=True)
+Config.LOGS_DIR.mkdir(exist_ok=True)

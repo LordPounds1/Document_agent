@@ -1,0 +1,14 @@
+[server]
+headless = true
+port = 8501
+runOnSave = false
+fileWatcherType = "none"
+
+[browser]
+gatherUsageStats = false
+
+[runner]
+fastReruns = true
+
+[logger]
+level = "warning"

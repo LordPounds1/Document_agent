@@ -1,0 +1,58 @@
+# Git
+.git
+.gitignore
+
+# Python
+__pycache__
+*.py[cod]
+*$py.class
+*.so
+.Python
+venv/
+env/
+.venv/
+ENV/
+*.egg-info/
+.eggs/
+dist/
+build/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# Logs
+logs/
+*.log
+
+# Data (будет монтироваться как volume)
+data/
+*.xlsx
+
+# Models (будут монтироваться как volume, слишком большие для образа)
+models/*.gguf
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Docker
+Dockerfile*
+docker-compose*.yml
+.dockerignore
+
+# Документация (не нужна в контейнере)
+*.md
+*.txt
+!requirements.txt
+
+# Batch файлы (Windows-специфичные)
+*.bat
+
+# Jupyter
+.ipynb_checkpoints/
+
+# MyPy
+.mypy_cache/
