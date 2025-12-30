@@ -15,12 +15,8 @@ models/*.gguf
 models/*.bin
 *.pth
 
-# Конфиденциальные шаблоны договоров (оригиналы и зашифрованные)
-templates/*.docx
-templates/*.doc
-templates/*.pdf
-templates/*.PDF
-templates_encrypted/
+# Конфиденциальные шаблоны договоров (только оригиналы)
+templates/
 
 # Ключ шифрования (НИКОГДА не коммитить!)
 .templates_key
