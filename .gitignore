@@ -22,6 +22,9 @@ templates/
 .templates_key
 .env
 
+# Личная шпаргалка
+CHEATSHEET.md
+
 # Логи
 logs/
 
