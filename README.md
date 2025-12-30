@@ -208,7 +208,7 @@ pip install -r requirements.txt
 python scripts/encrypt_templates.py --decrypt
 
 # 5. Запуск приложения
-streamlit run app_streamlit.py
+streamlit run .streamlit/app_streamlit.py
 ```
 
 ### Docker запуск
@@ -237,7 +237,8 @@ docker-compose up -d
 
 ```
 document_processing_agent/
-├── app_streamlit.py          # Веб-интерфейс (Streamlit)
+├── .streamlit/
+│   └── app_streamlit.py      # Веб-интерфейс (Streamlit)
 ├── config.py                 # Конфигурация приложения
 ├── requirements.txt          # Python зависимости
 ├── Dockerfile               # Docker образ
@@ -308,7 +309,3 @@ python scripts/encrypt_templates.py --decrypt
 MIT License
 
 ---
-
-## 👤 Автор
-
-Итоговый проект курса по AI/ML

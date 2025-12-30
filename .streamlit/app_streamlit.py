@@ -18,6 +18,10 @@ import time
 import logging
 import io
 import html
+import sys
+
+# Добавляем родительскую директорию в путь для импортов
+sys.path.insert(0, str(Path(__file__).parent.parent))
 
 # Настройка логирования
 logging.basicConfig(level=logging.INFO)
