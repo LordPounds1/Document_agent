@@ -50,6 +50,7 @@ data/
 .whatsapp_session_playwright/
 whatsapp_downloads/
 whatsapp_scan_results.json
+whatsapp_monitor_results.json
 
 # LLM модели (большие файлы)
 models/*.gguf

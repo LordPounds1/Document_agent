@@ -8,7 +8,8 @@ Components:
 - ChatIterator: Navigate through all chats
 - MessageScanner: Find documents in chat history  
 - DocumentDownloader: Download PDF/DOCX files
-- WhatsAppAdapter: Integration with document pipeline
+- WhatsAppPipeline: Integration with document pipeline
+- WhatsAppMonitor: Background monitoring for new documents
 """
 
 from whatsapp.client import WhatsAppClient
@@ -16,6 +17,7 @@ from whatsapp.chat_iterator import ChatIterator
 from whatsapp.message_scanner import MessageScanner
 from whatsapp.downloader import DocumentDownloader
 from whatsapp.adapter import WhatsAppPipeline
+from whatsapp.monitor import WhatsAppMonitor, get_monitor, create_monitor, stop_monitor
 
 __all__ = [
     'WhatsAppClient',
@@ -23,4 +25,8 @@ __all__ = [
     'MessageScanner',
     'DocumentDownloader',
     'WhatsAppPipeline',
+    'WhatsAppMonitor',
+    'get_monitor',
+    'create_monitor',
+    'stop_monitor',
 ]

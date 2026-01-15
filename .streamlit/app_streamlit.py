@@ -105,16 +105,18 @@ from agents.whatsapp_agent import WhatsAppAgent
 from processors.document import DocumentProcessor
 from core.rag import SimpleRAG
 
-# Импорт WhatsApp Playwright модуля (subprocess версия для Streamlit на Windows)
+# Импорт WhatsApp Playwright модуля
 import subprocess
 import json
+import threading
 
 try:
     import playwright
+    from whatsapp.monitor import WhatsAppMonitor, get_monitor, create_monitor, stop_monitor
     PLAYWRIGHT_AVAILABLE = True
 except ImportError:
     PLAYWRIGHT_AVAILABLE = False
-    SubprocessDocument = None
+    WhatsAppMonitor = None
 
 # Конфигурация страницы
 st.set_page_config(
@@ -175,6 +177,10 @@ def init_session_state():
     # WhatsApp Playwright
     if 'whatsapp_processing' not in st.session_state:
         st.session_state.whatsapp_processing = False
+    if 'whatsapp_monitoring' not in st.session_state:
+        st.session_state.whatsapp_monitoring = False
+    if 'whatsapp_monitor_events' not in st.session_state:
+        st.session_state.whatsapp_monitor_events = []
     if 'whatsapp_documents' not in st.session_state:
         st.session_state.whatsapp_documents = []
     if 'whatsapp_stats' not in st.session_state:
@@ -664,8 +670,8 @@ def main():
                 # В реальном приложении здесь будет polling с интервалом
     
     with tab2:
-        st.header("📱 WhatsApp (Playwright)")
-        st.markdown("**Автоматический поиск и обработка договоров из WhatsApp**")
+        st.header("📱 WhatsApp Мониторинг")
+        st.markdown("**Автоматический мониторинг договоров из WhatsApp**")
         
         # Проверка Playwright
         if not PLAYWRIGHT_AVAILABLE:
@@ -673,264 +679,326 @@ def main():
             st.code("pip install playwright\nplaywright install chromium", language="bash")
             st.info("После установки перезапустите приложение")
         else:
-            # Статус
-            col_status1, col_status2 = st.columns(2)
+            # Функция обработки документа из монитора
+            def process_whatsapp_document(doc):
+                """Callback для обработки документа из монитора."""
+                try:
+                    init_document_processor()
+                    init_rag()
+                    
+                    is_contract = doc.is_contract
+                    confidence = 0.5 if is_contract else 0.0
+                    contract_info = {}
+                    
+                    # Deep classification with LLM
+                    if st.session_state.document_processor and doc.text:
+                        try:
+                            is_contract, confidence = st.session_state.document_processor.is_contract(doc.text)
+                            if is_contract:
+                                contract_info = st.session_state.document_processor.extract_contract_info(doc.text)
+                        except Exception as e:
+                            logger.debug(f"Classification error: {e}")
+                    
+                    if is_contract:
+                        result = {
+                            'order_number': st.session_state.order_number,
+                            'email_id': doc.file_path or '',
+                            'email_from': f'WhatsApp: {doc.sender}',
+                            'email_subject': f'Чат: {doc.subject}',
+                            'email_date': doc.received_at or datetime.now(),
+                            'document_type': contract_info.get('document_type', 'Договор'),
+                            'summary': contract_info.get('summary', doc.text[:150] if doc.text else doc.filename)[:200],
+                            'parties': contract_info.get('parties', ''),
+                            'amount': contract_info.get('amount', ''),
+                            'responsible': doc.sender,
+                            'processed_at': datetime.now().strftime('%Y-%m-%d %H:%M:%S'),
+                            'execution_period': contract_info.get('execution_period', ''),
+                            'penalties': contract_info.get('penalties', ''),
+                            'source': f'whatsapp:{doc.filename}',
+                            'confidence': f'{confidence:.0%}'
+                        }
+                        st.session_state.processed_documents.append(result)
+                        st.session_state.order_number += 1
+                        st.session_state.whatsapp_stats['contracts'] = st.session_state.whatsapp_stats.get('contracts', 0) + 1
+                    
+                    # Save document info
+                    st.session_state.whatsapp_documents.append({
+                        'filename': doc.filename,
+                        'sender': doc.sender,
+                        'chat': doc.subject,
+                        'is_contract': is_contract,
+                        'confidence': confidence
+                    })
+                    st.session_state.whatsapp_stats['documents'] = st.session_state.whatsapp_stats.get('documents', 0) + 1
+                    
+                    if doc.file_path:
+                        st.session_state.processed_whatsapp_files.add(doc.file_path)
+                        
+                except Exception as e:
+                    logger.error(f"Error processing WhatsApp document: {e}")
+            
+            def on_monitor_event(event):
+                """Callback для событий монитора."""
+                st.session_state.whatsapp_monitor_events.insert(0, {
+                    'type': event.event_type,
+                    'message': event.message,
+                    'time': event.timestamp.strftime('%H:%M:%S')
+                })
+                # Keep only last 50 events
+                st.session_state.whatsapp_monitor_events = st.session_state.whatsapp_monitor_events[:50]
+                logger.info(f"[WhatsApp Monitor] {event.message}")
+            
+            # Статус мониторинга
+            monitor = get_monitor()
+            is_monitoring = bool(monitor and monitor.is_running)
+            is_connected = bool(monitor and monitor.is_connected)
+            
+            col_status1, col_status2, col_status3 = st.columns(3)
             with col_status1:
-                if st.session_state.whatsapp_processing:
-                    st.info("⏳ Идёт сканирование...")
-                else:
-                    stats = st.session_state.whatsapp_stats
-                    if stats.get('documents', 0) > 0:
-                        st.success(f"✅ Найдено {stats.get('documents', 0)} документов")
+                if is_monitoring:
+                    if is_connected:
+                        st.success("🟢 Мониторинг активен")
                     else:
-                        st.warning("🔴 Документы не загружены")
+                        st.warning("🟡 Подключение...")
+                else:
+                    st.info("🔴 Мониторинг выключен")
             with col_status2:
                 stats = st.session_state.whatsapp_stats
+                st.metric("📄 Документов", stats.get('documents', 0))
+            with col_status3:
                 st.metric("📋 Договоров", stats.get('contracts', 0))
             
             st.divider()
             
             # Инструкция
-            with st.expander("📖 Как это работает", expanded=False):
+            with st.expander("📖 Как работает мониторинг", expanded=False):
                 st.markdown("""
-                ### Автоматический поиск документов:
+                ### Автоматический мониторинг WhatsApp:
                 
-                1. **Нажмите "Сканировать WhatsApp"** - откроется браузер
+                1. **Нажмите "Запустить мониторинг"** - откроется браузер
                 2. **Отсканируйте QR-код** в WhatsApp на телефоне (если нужно):
                    - WhatsApp → Настройки → Связанные устройства → Привязать устройство
-                3. **Дождитесь завершения** - система автоматически:
-                   - Откроет каждый чат
-                   - Найдёт документы (PDF, DOCX, XLSX)
-                   - Скачает их и классифицирует
+                3. **Мониторинг работает автоматически:**
+                   - Проверяет чаты каждую минуту
+                   - Находит новые документы (PDF, DOCX, XLSX)
+                   - Скачивает и классифицирует их
+                   - Добавляет договоры в результаты
                 
                 ⚠️ **Важно:** 
-                - Сессия сохраняется - при повторном запуске QR-код обычно не нужен
-                - Сканирование занимает 2-5 минут в зависимости от количества чатов
+                - Браузер должен оставаться открытым
+                - Сессия сохраняется между перезапусками
+                - Новые документы обрабатываются автоматически
                 """)
             
-            # Настройки сканирования
-            st.subheader("⚙️ Параметры сканирования")
+            # Настройки мониторинга
+            st.subheader("⚙️ Настройки мониторинга")
             col_opt1, col_opt2 = st.columns(2)
             with col_opt1:
-                chat_limit = st.slider("Количество чатов", min_value=3, max_value=50, value=10, key="wa_chat_limit")
+                chat_limit = st.slider("Количество чатов для проверки", min_value=3, max_value=30, value=10, key="wa_chat_limit")
             with col_opt2:
-                doc_limit = st.slider("Макс. документов", min_value=5, max_value=100, value=30, key="wa_doc_limit")
+                check_interval = st.slider("Интервал проверки (сек)", min_value=30, max_value=300, value=60, key="wa_interval")
             
             st.divider()
             
-            # Кнопка сканирования
-            col_scan1, col_scan2 = st.columns(2)
+            # Кнопки управления
+            col_btn1, col_btn2, col_btn3 = st.columns(3)
             
-            with col_scan1:
-                if st.button("🔍 Сканировать WhatsApp", use_container_width=True, type="primary",
-                            disabled=st.session_state.whatsapp_processing, key="wa_scan"):
-                    st.session_state.whatsapp_processing = True
-                    
-                    progress_bar = st.progress(0, text="Запуск браузера...")
-                    status_text = st.empty()
-                    
+            with col_btn1:
+                if st.button("▶️ Запустить мониторинг", use_container_width=True, type="primary",
+                            disabled=is_monitoring, key="wa_start"):
                     try:
-                        status_text.info("🚀 Запускается браузер... Ожидайте появления окна с WhatsApp Web")
-                        progress_bar.progress(0.05)
-                        
-                        # Путь к результатам
-                        results_file = Path("whatsapp_scan_results.json")
-                        if results_file.exists():
-                            results_file.unlink()
-                        
-                        # Запускаем скрипт сканирования как отдельный процесс
-                        # Используем тот же Python что и Streamlit
-                        cmd = [
-                            sys.executable, "-m", "whatsapp.run_scan",
-                            "--output", str(results_file),
-                            "--chats", str(chat_limit),
-                            "--docs", str(doc_limit),
-                            "--timeout", "120"
-                        ]
-                        
-                        logger.info(f"Starting WhatsApp scan: {' '.join(cmd)}")
-                        
-                        # Запускаем процесс
-                        process = subprocess.Popen(
-                            cmd,
-                            stdout=subprocess.PIPE,
-                            stderr=subprocess.STDOUT,
-                            text=True,
-                            cwd=str(Path(__file__).parent.parent)
+                        # Create monitor (subprocess-based)
+                        monitor = create_monitor(
+                            check_interval=check_interval,
+                            chat_limit=chat_limit
                         )
                         
-                        status_text.info("📱 Если нужно - отсканируйте QR-код в открывшемся браузере")
-                        progress_bar.progress(0.1, text="Ожидание входа в WhatsApp...")
+                        # Add already processed files
+                        for fp in st.session_state.processed_whatsapp_files:
+                            monitor.add_processed_file(fp)
                         
-                        # Ждём завершения процесса с таймаутом
-                        max_wait = 600  # 10 минут максимум
-                        start_time = time.time()
-                        
-                        while process.poll() is None:
-                            elapsed = time.time() - start_time
-                            if elapsed > max_wait:
-                                process.terminate()
-                                st.error("❌ Таймаут сканирования (10 минут)")
-                                break
-                            
-                            # Обновляем прогресс
-                            progress = min(0.9, 0.1 + (elapsed / max_wait) * 0.8)
-                            progress_bar.progress(progress, text=f"Сканирование... ({int(elapsed)}с)")
-                            
-                            # Читаем вывод процесса для логов
-                            try:
-                                line = process.stdout.readline()
-                                if line:
-                                    line = line.strip()
-                                    if line:
-                                        logger.info(line)
-                                        # Показываем ключевые события
-                                        if "Connected" in line or "подключ" in line.lower():
-                                            status_text.success("✅ Подключено к WhatsApp!")
-                                        elif "Scanning" in line or "сканиров" in line.lower():
-                                            status_text.info("🔍 Сканирование чатов...")
-                                        elif "Found" in line or "найден" in line.lower():
-                                            status_text.info(f"📄 {line}")
-                            except:
-                                pass
-                            
-                            time.sleep(0.5)
-                        
-                        # Читаем результаты
-                        if results_file.exists():
-                            try:
-                                result_data = json.loads(results_file.read_text(encoding='utf-8'))
-                                documents = result_data.get('documents', [])
-                                
-                                progress_bar.progress(0.95, text="Классификация документов...")
-                                status_text.text("🤖 Анализ документов с помощью LLM...")
-                                
-                                init_document_processor()
-                                init_rag()
-                                
-                                # Классификация
-                                contracts_found = 0
-                                for doc in documents:
-                                    file_path = doc.get('file_path', '')
-                                    if file_path and file_path in st.session_state.processed_whatsapp_files:
-                                        continue
-                                    
-                                    is_contract = doc.get('is_contract', False)
-                                    confidence = 0.5 if is_contract else 0.0
-                                    contract_info = {}
-                                    text = doc.get('text', '')
-                                    
-                                    # Deep classification with LLM
-                                    if st.session_state.document_processor and text:
-                                        try:
-                                            is_contract, confidence = st.session_state.document_processor.is_contract(text)
-                                            if is_contract:
-                                                contract_info = st.session_state.document_processor.extract_contract_info(text)
-                                        except Exception as e:
-                                            logger.debug(f"Classification error: {e}")
-                                    
-                                    filename = doc.get('filename', 'unknown')
-                                    sender = doc.get('sender', 'Unknown')
-                                    chat_name = doc.get('chat_name', 'Unknown')
-                                    
-                                    if is_contract:
-                                        contracts_found += 1
-                                        
-                                        # Add to results
-                                        result = {
-                                            'order_number': st.session_state.order_number,
-                                            'email_id': file_path,
-                                            'email_from': f'WhatsApp: {sender}',
-                                            'email_subject': f'Чат: {chat_name}',
-                                            'email_date': datetime.now(),
-                                            'document_type': contract_info.get('document_type', 'Договор'),
-                                            'summary': contract_info.get('summary', text[:150] if text else filename)[:200],
-                                            'parties': contract_info.get('parties', ''),
-                                            'amount': contract_info.get('amount', ''),
-                                            'responsible': sender,
-                                            'processed_at': datetime.now().strftime('%Y-%m-%d %H:%M:%S'),
-                                            'execution_period': contract_info.get('execution_period', ''),
-                                            'penalties': contract_info.get('penalties', ''),
-                                            'source': f'whatsapp:{filename}',
-                                            'confidence': f'{confidence:.0%}'
-                                        }
-                                        
-                                        st.session_state.processed_documents.append(result)
-                                        st.session_state.order_number += 1
-                                        if file_path:
-                                            st.session_state.processed_whatsapp_files.add(file_path)
-                                    
-                                    # Save document info
-                                    st.session_state.whatsapp_documents.append({
-                                        'filename': filename,
-                                        'sender': sender,
-                                        'chat': chat_name,
-                                        'is_contract': is_contract,
-                                        'confidence': confidence
-                                    })
-                                
-                                # Update stats
-                                st.session_state.whatsapp_stats = {
-                                    'chats': chat_limit,
-                                    'documents': len(documents),
-                                    'contracts': contracts_found
-                                }
-                                
-                                progress_bar.progress(1.0, text="Готово!")
-                                status_text.empty()
-                                
-                                if len(documents) == 0:
-                                    st.warning("📭 Документы не найдены. Убедитесь что в чатах есть PDF/DOC/XLSX файлы.")
-                                else:
-                                    st.success(f"✅ Найдено {len(documents)} документов, из них {contracts_found} договоров!")
-                                
-                            except json.JSONDecodeError as e:
-                                st.error(f"❌ Ошибка чтения результатов: {e}")
+                        # Start monitoring subprocess
+                        if monitor.start():
+                            st.session_state.whatsapp_monitoring = True
+                            st.success("✅ Мониторинг запущен! Откроется браузер с WhatsApp Web.")
+                            st.info("📱 Если нужно - отсканируйте QR-код в браузере")
+                            time.sleep(2)
+                            st.rerun()
                         else:
-                            st.error("❌ Результаты сканирования не найдены. Возможно, произошла ошибка.")
-                        
-                        st.session_state.whatsapp_processing = False
+                            st.error("❌ Не удалось запустить мониторинг")
                         
                     except Exception as e:
-                        st.error(f"❌ Ошибка сканирования: {e}")
-                        logger.error(f"Ошибка сканирования WhatsApp: {e}")
-                        import traceback
-                        logger.error(traceback.format_exc())
-                        st.session_state.whatsapp_processing = False
+                        st.error(f"❌ Ошибка запуска: {e}")
+                        logger.error(f"Monitor start error: {e}")
             
-            with col_scan2:
+            with col_btn2:
+                if st.button("⏹️ Остановить мониторинг", use_container_width=True,
+                            disabled=not is_monitoring, key="wa_stop"):
+                    try:
+                        stop_monitor()
+                        st.session_state.whatsapp_monitoring = False
+                        st.info("Мониторинг остановлен")
+                        st.rerun()
+                    except Exception as e:
+                        st.error(f"❌ Ошибка остановки: {e}")
+            
+            with col_btn3:
                 if st.button("🗑️ Очистить результаты", use_container_width=True, key="wa_clear"):
                     st.session_state.whatsapp_documents = []
                     st.session_state.whatsapp_stats = {'chats': 0, 'documents': 0, 'contracts': 0}
                     st.session_state.processed_whatsapp_files = set()
+                    st.session_state.whatsapp_monitor_events = []
+                    # Delete results file
+                    results_file = Path("whatsapp_monitor_results.json")
+                    if results_file.exists():
+                        results_file.unlink()
                     st.rerun()
             
-            # Показываем логи
+            # Если мониторинг активен - проверяем новые документы
+            if is_monitoring and monitor:
+                # Poll for new documents
+                new_docs = monitor.get_new_documents()
+                
+                for doc in new_docs:
+                    # Process each new document
+                    try:
+                        init_document_processor()
+                        init_rag()
+                        
+                        is_contract = doc.get('is_contract', False)
+                        confidence = 0.5 if is_contract else 0.0
+                        contract_info = {}
+                        text = doc.get('text', '')
+                        
+                        # Deep classification with LLM
+                        if st.session_state.document_processor and text:
+                            try:
+                                is_contract, confidence = st.session_state.document_processor.is_contract(text)
+                                if is_contract:
+                                    contract_info = st.session_state.document_processor.extract_contract_info(text)
+                            except Exception as e:
+                                logger.debug(f"Classification error: {e}")
+                        
+                        filename = doc.get('filename', 'unknown')
+                        sender = doc.get('sender', 'Unknown')
+                        chat_name = doc.get('chat_name', 'Unknown')
+                        file_path = doc.get('file_path', '')
+                        
+                        if is_contract:
+                            result = {
+                                'order_number': st.session_state.order_number,
+                                'email_id': file_path,
+                                'email_from': f'WhatsApp: {sender}',
+                                'email_subject': f'Чат: {chat_name}',
+                                'email_date': datetime.now(),
+                                'document_type': contract_info.get('document_type', 'Договор'),
+                                'summary': contract_info.get('summary', text[:150] if text else filename)[:200],
+                                'parties': contract_info.get('parties', ''),
+                                'amount': contract_info.get('amount', ''),
+                                'responsible': sender,
+                                'processed_at': datetime.now().strftime('%Y-%m-%d %H:%M:%S'),
+                                'execution_period': contract_info.get('execution_period', ''),
+                                'penalties': contract_info.get('penalties', ''),
+                                'source': f'whatsapp:{filename}',
+                                'confidence': f'{confidence:.0%}'
+                            }
+                            st.session_state.processed_documents.append(result)
+                            st.session_state.order_number += 1
+                            st.session_state.whatsapp_stats['contracts'] = st.session_state.whatsapp_stats.get('contracts', 0) + 1
+                        
+                        # Save document info
+                        st.session_state.whatsapp_documents.append({
+                            'filename': filename,
+                            'sender': sender,
+                            'chat': chat_name,
+                            'is_contract': is_contract,
+                            'confidence': confidence
+                        })
+                        st.session_state.whatsapp_stats['documents'] = st.session_state.whatsapp_stats.get('documents', 0) + 1
+                        
+                        if file_path:
+                            st.session_state.processed_whatsapp_files.add(file_path)
+                        
+                        # Add event
+                        st.session_state.whatsapp_monitor_events.insert(0, {
+                            'type': 'document_found',
+                            'message': f"Найден: {filename}",
+                            'time': datetime.now().strftime('%H:%M:%S')
+                        })
+                        
+                        logger.info(f"Processed WhatsApp document: {filename}")
+                        
+                    except Exception as e:
+                        logger.error(f"Error processing document: {e}")
+                
+                # Show stats
+                st.divider()
+                status = monitor.get_status()
+                status_text = {
+                    'connecting': '🟡 Подключение...',
+                    'monitoring': '🟢 Мониторинг активен',
+                    'error': '🔴 Ошибка',
+                    'stopped': '⚫ Остановлен'
+                }.get(status, f'❓ {status}')
+                
+                col_stat1, col_stat2, col_stat3, col_stat4 = st.columns(4)
+                with col_stat1:
+                    st.metric("📊 Статус", status_text)
+                with col_stat2:
+                    st.metric("🔍 Проверок", monitor.stats.get('checks_count', 0))
+                with col_stat3:
+                    last_check = monitor.stats.get('last_check')
+                    if last_check:
+                        st.metric("⏱️ Последняя", last_check.strftime('%H:%M:%S'))
+                    else:
+                        st.metric("⏱️ Последняя", "-")
+                with col_stat4:
+                    st.metric("📥 Найдено", monitor.stats.get('documents_found', 0))
+                
+                # Auto-refresh while monitoring
+                if new_docs:
+                    st.rerun()
+                else:
+                    time.sleep(3)
+                    st.rerun()
+            
+            # События монитора
             st.divider()
-            with st.expander("📋 Логи обработки", expanded=True):
+            with st.expander("📋 События мониторинга", expanded=is_monitoring):
+                events = st.session_state.whatsapp_monitor_events
+                if events:
+                    for event in events[:20]:
+                        icon = "📄" if event['type'] == 'document_found' else \
+                               "✅" if event['type'] == 'document_processed' else \
+                               "❌" if event['type'] == 'error' else "ℹ️"
+                        st.text(f"{event['time']} {icon} {event['message']}")
+                else:
+                    st.info("События появятся после запуска мониторинга")
+            
+            # Логи
+            with st.expander("📋 Логи обработки", expanded=False):
                 logs = whatsapp_log_handler.get_logs()
                 if logs:
                     log_text = "\n".join(logs[:100])
-                    st.text_area("Логи", value=log_text, height=300, disabled=True, label_visibility="collapsed")
+                    st.text_area("Логи", value=log_text, height=200, disabled=True, label_visibility="collapsed")
                     if st.button("🗑️ Очистить логи", key="wa_clear_logs"):
                         whatsapp_log_handler.clear_logs()
                         st.rerun()
                 else:
-                    st.info("Логи появятся после начала сканирования")
+                    st.info("Логи появятся после начала мониторинга")
             
-            # Результаты сканирования
+            # Результаты
             if st.session_state.whatsapp_documents:
                 st.divider()
                 st.subheader("📄 Найденные документы")
                 
-                # Фильтр
                 show_contracts_only = st.checkbox("Показать только договоры", value=False, key="wa_filter_contracts")
                 
                 docs_to_show = st.session_state.whatsapp_documents
                 if show_contracts_only:
                     docs_to_show = [d for d in docs_to_show if d.get('is_contract')]
                 
-                for doc in docs_to_show[-20:]:  # Last 20
+                for doc in docs_to_show[-20:]:
                     contract_badge = "📋 ДОГОВОР" if doc.get('is_contract') else "📄"
                     conf = doc.get('confidence', 0)
                     conf_str = f" ({conf:.0%})" if conf > 0 else ""
