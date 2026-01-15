@@ -1,0 +1,16 @@
+# .cursorrules
+stack: python
+style:
+  indent: 4
+  quotes: single
+strict:
+  require types: true
+tests:
+  generate unit tests: true
+  frameworks: pytest
+env:
+  python_version: '3.10'
+ignore:
+  - models/
+  - *.env
+  - *.gguf

@@ -1,8 +1,9 @@
-"""Конфигурация приложения Document Processing Agent"""
+"""Конфигурация приложения Document Processing Agent."""
 
-import os
 import logging
+import os
 from pathlib import Path
+
 from dotenv import load_dotenv
 
 load_dotenv()
@@ -42,6 +43,12 @@ class Config:
     # Агент
     CHECK_INTERVAL_MINUTES = int(os.getenv("CHECK_INTERVAL_MINUTES", 5))
     LOG_LEVEL = os.getenv("LOG_LEVEL", "INFO")
+    
+    # RAG и обучение
+    RAG_ENABLE_LEARNING = os.getenv("RAG_ENABLE_LEARNING", "true").lower() == "true"
+    RAG_PERSIST_DIR = os.getenv("RAG_PERSIST_DIR", str(BASE_DIR / ".chroma_db"))
+    RAG_MIN_DOCUMENT_LENGTH = int(os.getenv("RAG_MIN_DOCUMENT_LENGTH", 100))
+    RAG_USE_GPU = os.getenv("RAG_USE_GPU", "false").lower() == "true"
     
     # Почтовые провайдеры
     EMAIL_PROVIDERS = {
@@ -95,3 +102,4 @@ class Config:
 # Создаём директории при необходимости
 Config.DATA_DIR.mkdir(exist_ok=True)
 Config.LOGS_DIR.mkdir(exist_ok=True)
+

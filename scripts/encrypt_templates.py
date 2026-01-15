@@ -6,19 +6,19 @@
 Использование:
     # Генерация ключа (один раз)
     python encrypt_templates.py --generate-key
-    
+
     # Шифрование
     python encrypt_templates.py --encrypt
-    
-    # Расшифровка  
+
+    # Расшифровка
     python encrypt_templates.py --decrypt
 
 Ключ хранится в переменной окружения TEMPLATES_KEY или файле .templates_key
 """
 
+import argparse
 import os
 import sys
-import argparse
 from pathlib import Path
 
 # Добавляем корень проекта в путь
@@ -152,3 +152,4 @@ def main():
 
 if __name__ == '__main__':
     main()
+

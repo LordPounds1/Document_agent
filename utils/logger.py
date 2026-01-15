@@ -1,4 +1,4 @@
-"""Настройка логирования с поддержкой Unicode для Windows"""
+"""Настройка логирования с поддержкой Unicode для Windows."""
 
 import logging
 import sys
@@ -72,5 +72,5 @@ def setup_logger(log_level: str = "INFO"):
     
     # Тестовое сообщение
     root_logger.info("Logger initialized with UTF-8 support")
-    
+
     return root_logger

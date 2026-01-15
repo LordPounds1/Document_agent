@@ -1,14 +1,35 @@
-"""Упрощённый агент для работы с почтой"""
+"""Упрощённый агент для работы с почтой."""
 
 import email
 import imaplib
 import io
-from email.header import decode_header
-from typing import List, Dict, Optional
 import logging
+import socket
 from datetime import datetime
+from email.header import decode_header
+from typing import Dict, List, Optional
 
+# Security: никогда не логируем пароли
 logger = logging.getLogger(__name__)
+
+# Retry и metrics
+try:
+    from utils.retry import retry, email_circuit, RetryExhausted, CircuitOpenError
+    from utils.metrics import metrics, record_email_processed
+    RETRY_AVAILABLE = True
+except ImportError:
+    RETRY_AVAILABLE = False
+    logger.warning("Retry/metrics modules not available")
+
+
+def _safe_error_message(error: Exception) -> str:
+    """Создание безопасного сообщения об ошибке без чувствительных данных."""
+    error_str = str(error)
+    # Маскируем потенциальные пароли в сообщениях ошибок
+    import re
+    error_str = re.sub(r'(password|passwd|pwd)[=:\s]+\S+', r'\1=****', error_str, flags=re.IGNORECASE)
+    error_str = re.sub(r'LOGIN\s+\S+\s+\S+', 'LOGIN **** ****', error_str, flags=re.IGNORECASE)
+    return error_str
 
 
 class EmailAgent:
@@ -46,7 +67,7 @@ class EmailAgent:
         return {'imap': f'imap.{domain}', 'port': 993}
     
     def connect(self, email_address: str, password: str) -> bool:
-        """Подключение к почтовому серверу
+        """Подключение к почтовому серверу с retry-логикой.
         
         Args:
             email_address: Email адрес
@@ -55,33 +76,83 @@ class EmailAgent:
         Returns:
             True если подключение успешно
         """
-        try:
-            self.email_address = email_address
-            self.provider_settings = self._detect_provider(email_address)
-            
-            server = self.provider_settings['imap']
-            port = self.provider_settings['port']
-            
-            logger.info(f"Подключение к {server}:{port}...")
-            
-            self.imap = imaplib.IMAP4_SSL(server, port)
-            self.imap.login(email_address, password)
-            self.connected = True
-            
-            logger.info(f"✅ Успешное подключение к {server}")
-            return True
-            
-        except Exception as e:
-            logger.error(f"❌ Ошибка подключения: {e}")
-            self.connected = False
-            return False
+        self.email_address = email_address
+        self.provider_settings = self._detect_provider(email_address)
+        
+        server = self.provider_settings['imap']
+        port = self.provider_settings['port']
+        
+        # Попытка подключения с retry
+        return self._connect_with_retry(server, port, email_address, password)
+    
+    def _connect_with_retry(
+        self, server: str, port: int, email_address: str, password: str
+    ) -> bool:
+        """Внутренний метод подключения с повторными попытками."""
+        max_attempts = 3
+        base_delay = 2.0
+        
+        for attempt in range(1, max_attempts + 1):
+            try:
+                logger.info(f"Подключение к {server}:{port} (попытка {attempt}/{max_attempts})...")
+                
+                # Устанавливаем таймаут для socket
+                socket.setdefaulttimeout(30)
+                
+                self.imap = imaplib.IMAP4_SSL(server, port)
+                self.imap.login(email_address, password)
+                self.connected = True
+                
+                logger.info(f"✅ Успешное подключение к {server}")
+                
+                # Записываем метрику
+                if RETRY_AVAILABLE:
+                    metrics.increment("email_connections_total", labels={"status": "success"})
+                
+                return True
+                
+            except imaplib.IMAP4.error as e:
+                # Ошибка аутентификации - не повторяем
+                logger.error(f"❌ Ошибка IMAP аутентификации для {email_address.split('@')[-1]}")
+                self.connected = False
+                if RETRY_AVAILABLE:
+                    metrics.increment("email_connections_total", labels={"status": "auth_error"})
+                return False
+                
+            except (socket.timeout, socket.error, ConnectionError, OSError) as e:
+                # Сетевые ошибки - повторяем
+                safe_error = _safe_error_message(e)
+                logger.warning(f"⚠️ Сетевая ошибка (попытка {attempt}): {safe_error}")
+                
+                if attempt < max_attempts:
+                    delay = base_delay * (2 ** (attempt - 1))  # Exponential backoff
+                    logger.info(f"⏳ Повтор через {delay:.1f} сек...")
+                    import time
+                    time.sleep(delay)
+                else:
+                    logger.error(f"❌ Не удалось подключиться после {max_attempts} попыток")
+                    self.connected = False
+                    if RETRY_AVAILABLE:
+                        metrics.increment("email_connections_total", labels={"status": "network_error"})
+                    return False
+                    
+            except Exception as e:
+                # Прочие ошибки
+                safe_error = _safe_error_message(e)
+                logger.error(f"❌ Ошибка подключения: {safe_error}")
+                self.connected = False
+                if RETRY_AVAILABLE:
+                    metrics.increment("email_connections_total", labels={"status": "error"})
+                return False
+        
+        return False
     
     def disconnect(self):
         """Отключение от сервера"""
         if self.connected and self.imap:
             try:
                 self.imap.logout()
-            except:
+            except Exception:
                 pass
             self.connected = False
             logger.info("Отключено от почтового сервера")
@@ -157,9 +228,9 @@ class EmailAgent:
         try:
             from email.utils import parsedate_to_datetime
             date = parsedate_to_datetime(date_str)
-        except:
+        except (ValueError, TypeError):
             date = datetime.now()
-        
+
         # Извлекаем текст
         body = self._extract_body(email_message)
         
@@ -190,7 +261,7 @@ class EmailAgent:
             if isinstance(part, bytes):
                 try:
                     result.append(part.decode(encoding or 'utf-8', errors='replace'))
-                except:
+                except (LookupError, UnicodeDecodeError):
                     result.append(part.decode('utf-8', errors='replace'))
             else:
                 result.append(part)
@@ -211,19 +282,19 @@ class EmailAgent:
                         charset = part.get_content_charset() or 'utf-8'
                         body = part.get_payload(decode=True).decode(charset, errors='replace')
                         break
-                    except:
+                    except (UnicodeDecodeError, AttributeError, LookupError):
                         pass
         else:
             try:
                 charset = msg.get_content_charset() or 'utf-8'
                 body = msg.get_payload(decode=True).decode(charset, errors='replace')
-            except:
+            except (UnicodeDecodeError, AttributeError, LookupError):
                 body = str(msg.get_payload())
         
         return body
     
     def _extract_attachments(self, msg) -> List[Dict]:
-        """Извлечение вложений"""
+        """Извлечение вложений с санитизацией имён файлов"""
         attachments = []
         
         if msg.is_multipart():
@@ -234,7 +305,15 @@ class EmailAgent:
                     filename = part.get_filename()
                     if filename:
                         filename = self._decode_header(filename)
+                        # Санитизация имени файла для предотвращения path traversal
+                        filename = self._sanitize_filename(filename)
                         content = part.get_payload(decode=True)
+                        
+                        # Ограничение размера вложения (50 MB)
+                        max_size = 50 * 1024 * 1024
+                        if content and len(content) > max_size:
+                            logger.warning(f"Вложение {filename} слишком большое, пропущено")
+                            continue
                         
                         attachments.append({
                             'filename': filename,
@@ -245,12 +324,38 @@ class EmailAgent:
         
         return attachments
     
+    def _sanitize_filename(self, filename: str) -> str:
+        """Санитизация имени файла для предотвращения path traversal"""
+        if not filename:
+            return "unnamed"
+        
+        # Убираем путь, оставляем только имя файла
+        filename = filename.replace('\\', '/').split('/')[-1]
+        
+        # Удаляем опасные символы
+        dangerous = ['..', '~', '\x00', ':', '*', '?', '"', '<', '>', '|']
+        for char in dangerous:
+            filename = filename.replace(char, '_')
+        
+        # Ограничиваем длину
+        if len(filename) > 200:
+            name_parts = filename.rsplit('.', 1)
+            if len(name_parts) == 2:
+                name, ext = name_parts
+                filename = name[:190] + '.' + ext
+            else:
+                filename = filename[:200]
+        
+        return filename or "unnamed"
+        
+        return attachments
+    
     def mark_as_read(self, email_id: str):
         """Пометить письмо как прочитанное"""
         if self.connected:
             try:
                 self.imap.store(email_id.encode(), '+FLAGS', '\\Seen')
-            except:
+            except Exception:
                 pass
     
     def get_attachment_text(self, attachment: Dict) -> str:
@@ -286,5 +391,6 @@ class EmailAgent:
             
         except Exception as e:
             logger.error(f"Ошибка извлечения текста из {filename}: {e}")
-        
+
         return ""
+

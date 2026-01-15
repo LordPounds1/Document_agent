@@ -1,0 +1,92 @@
+# ===========================================
+# Document Processing Agent - Production Docker Compose
+# ===========================================
+# 
+# Использование:
+#   docker compose -f docker-compose.prod.yml up -d --build
+#
+# Особенности продакшен-конфигурации:
+# - Порт привязан к localhost (nginx проксирует)
+# - Ограничения ресурсов
+# - Логирование с ротацией
+# - Автоматический перезапуск
+
+services:
+  document-agent:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: document-agent
+    
+    # Привязка только к localhost (nginx проксирует снаружи)
+    ports:
+      - "127.0.0.1:8501:8501"
+    
+    # Volumes
+    volumes:
+      # Модель LLM (только чтение)
+      - ./models:/app/models:ro
+      # Шаблоны договоров (только чтение)
+      - ./templates:/app/templates:ro
+      # Зашифрованные шаблоны (только чтение)
+      - ./templates_encrypted:/app/templates_encrypted:ro
+      # Данные (чтение/запись)
+      - ./data:/app/data
+      # Логи (чтение/запись)
+      - ./logs:/app/logs
+      # Файл пользователей для аутентификации
+      - ./.users:/app/.users
+    
+    # Переменные окружения
+    environment:
+      # LLM
+      - MODEL_CONTEXT_SIZE=2048
+      - MODEL_TEMPERATURE=0.1
+      - MODEL_N_GPU_LAYERS=0  # CPU only в Docker
+      - MODEL_MAX_TOKENS=512
+      # Агент
+      - CHECK_INTERVAL_MINUTES=5
+      - LOG_LEVEL=WARNING  # Меньше логов в продакшене
+      # Ключ шифрования (передаётся при запуске)
+      - TEMPLATES_KEY=${TEMPLATES_KEY:-}
+    
+    # Политика перезапуска
+    restart: always
+    
+    # Health check
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8501/_stcore/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 60s  # Модель долго загружается
+    
+    # Ограничения ресурсов
+    deploy:
+      resources:
+        limits:
+          cpus: '4'
+          memory: 12G  # LLM требует много RAM
+        reservations:
+          cpus: '2'
+          memory: 8G
+    
+    # Логирование с ротацией
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "5"
+    
+    # Безопасность
+    security_opt:
+      - no-new-privileges:true
+    read_only: false  # Нужна запись в /app/data и /app/logs
+    
+    # Сеть
+    networks:
+      - document-agent-network
+
+networks:
+  document-agent-network:
+    driver: bridge

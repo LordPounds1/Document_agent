@@ -1,0 +1,65 @@
+# Dependabot configuration
+# Автоматическое обновление зависимостей и проверка уязвимостей
+
+version: 2
+
+updates:
+  # Python dependencies
+  - package-ecosystem: "pip"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+      time: "09:00"
+      timezone: "Europe/Moscow"
+    open-pull-requests-limit: 5
+    commit-message:
+      prefix: "deps"
+      include: "scope"
+    labels:
+      - "dependencies"
+      - "python"
+    # Группировка minor/patch обновлений
+    groups:
+      development-dependencies:
+        patterns:
+          - "pytest*"
+          - "mypy*"
+          - "ruff*"
+          - "black*"
+        update-types:
+          - "minor"
+          - "patch"
+      production-dependencies:
+        patterns:
+          - "streamlit*"
+          - "pandas*"
+          - "openpyxl*"
+        update-types:
+          - "patch"
+    # Игнорируем major обновления llama-cpp (могут ломать API)
+    ignore:
+      - dependency-name: "llama-cpp-python"
+        update-types: ["version-update:semver-major"]
+
+  # Docker dependencies
+  - package-ecosystem: "docker"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+    commit-message:
+      prefix: "docker"
+    labels:
+      - "dependencies"
+      - "docker"
+
+  # GitHub Actions
+  - package-ecosystem: "github-actions"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+    commit-message:
+      prefix: "ci"
+    labels:
+      - "dependencies"
+      - "ci"

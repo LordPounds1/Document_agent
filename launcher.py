@@ -10,6 +10,7 @@ import time
 import webbrowser
 from pathlib import Path
 
+
 def main():
     # Определяем директорию приложения
     if getattr(sys, 'frozen', False):
@@ -115,3 +116,4 @@ def main():
 
 if __name__ == "__main__":
     main()
+

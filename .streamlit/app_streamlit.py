@@ -1,5 +1,6 @@
 """
-📧 Document Processing Agent - Web Interface
+📧 Document Processing Agent - Web Interface.
+
 Веб-интерфейс для обработки договоров из почты
 
 Функциональность:
@@ -10,27 +11,110 @@
 5. Мониторинг новых писем
 """
 
-import streamlit as st
-import pandas as pd
+import html
+import io
+import logging
+import sys
+import time
 from datetime import datetime
 from pathlib import Path
-import time
-import logging
-import io
-import html
-import sys
+from typing import Dict, Optional
+
+import pandas as pd
+import streamlit as st
 
 # Добавляем родительскую директорию в путь для импортов
 sys.path.insert(0, str(Path(__file__).parent.parent))
+
+# Security imports
+from utils.security import (
+    validate_email,
+    validate_password,
+    sanitize_html,
+    sanitize_filename,
+    login_rate_limiter,
+)
+from utils.auth import require_auth, show_user_menu, logout
 
 # Настройка логирования
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
+# Кастомный handler для отображения логов в Streamlit
+class StreamlitLogHandler(logging.Handler):
+    """Handler для сохранения логов в session_state (потокобезопасный)."""
+    
+    def __init__(self, max_lines: int = 200):
+        super().__init__()
+        self.max_lines = max_lines
+        self.setLevel(logging.INFO)
+        self._logs = []  # Внутренний список логов
+        import threading
+        self._lock = threading.Lock()
+        
+        # Форматтер для логов (упрощённый формат)
+        formatter = logging.Formatter(
+            '%(asctime)s [%(levelname)s] %(message)s',
+            datefmt='%H:%M:%S'
+        )
+        self.setFormatter(formatter)
+    
+    def emit(self, record):
+        """Сохраняет лог во внутренний список (потокобезопасно)."""
+        try:
+            # Форматируем сообщение
+            log_entry = self.format(record)
+            
+            with self._lock:
+                # Добавляем в начало списка (новые сверху)
+                self._logs.insert(0, log_entry)
+                
+                # Ограничиваем количество логов
+                if len(self._logs) > self.max_lines:
+                    self._logs = self._logs[:self.max_lines]
+        except Exception:
+            # Игнорируем ошибки в handler, чтобы не ломать приложение
+            pass
+    
+    def get_logs(self) -> list:
+        """Получить копию логов (потокобезопасно)."""
+        with self._lock:
+            return self._logs.copy()
+    
+    def clear_logs(self):
+        """Очистить логи (потокобезопасно)."""
+        with self._lock:
+            self._logs = []
+
+# Инициализируем handler для WhatsApp логов
+whatsapp_log_handler = StreamlitLogHandler(max_lines=200)
+
+# Добавляем handler к логгерам WhatsApp (Playwright)
+for logger_name in ['whatsapp', 'whatsapp.client', 'whatsapp.adapter', 'whatsapp.chat_iterator', 'whatsapp.message_scanner', 'whatsapp.downloader']:
+    wa_logger = logging.getLogger(logger_name)
+    wa_logger.addHandler(whatsapp_log_handler)
+    wa_logger.setLevel(logging.INFO)
+
+# Также добавляем к корневому логгеру для перехвата всех логов WhatsApp
+root_logger = logging.getLogger()
+root_logger.addHandler(whatsapp_log_handler)
+
 # Импорт компонентов
 from agents.email_agent import EmailAgent
+from agents.whatsapp_agent import WhatsAppAgent
 from processors.document import DocumentProcessor
 from core.rag import SimpleRAG
+
+# Импорт WhatsApp Playwright модуля (subprocess версия для Streamlit на Windows)
+import subprocess
+import json
+
+try:
+    import playwright
+    PLAYWRIGHT_AVAILABLE = True
+except ImportError:
+    PLAYWRIGHT_AVAILABLE = False
+    SubprocessDocument = None
 
 # Конфигурация страницы
 st.set_page_config(
@@ -86,6 +170,17 @@ def init_session_state():
     """Инициализация состояния сессии"""
     if 'email_agent' not in st.session_state:
         st.session_state.email_agent = EmailAgent()
+    if 'whatsapp_agent' not in st.session_state:
+        st.session_state.whatsapp_agent = WhatsAppAgent()
+    # WhatsApp Playwright
+    if 'whatsapp_processing' not in st.session_state:
+        st.session_state.whatsapp_processing = False
+    if 'whatsapp_documents' not in st.session_state:
+        st.session_state.whatsapp_documents = []
+    if 'whatsapp_stats' not in st.session_state:
+        st.session_state.whatsapp_stats = {'chats': 0, 'documents': 0, 'contracts': 0}
+    if 'processed_whatsapp_files' not in st.session_state:
+        st.session_state.processed_whatsapp_files = set()
     if 'document_processor' not in st.session_state:
         st.session_state.document_processor = None
     if 'rag' not in st.session_state:
@@ -95,7 +190,7 @@ def init_session_state():
     if 'processed_documents' not in st.session_state:
         st.session_state.processed_documents = []
     if 'processed_email_ids' not in st.session_state:
-        st.session_state.processed_email_ids = set()  # Для отслеживания уже обработанных писем
+        st.session_state.processed_email_ids = set()
     if 'order_number' not in st.session_state:
         st.session_state.order_number = 1
     if 'monitoring' not in st.session_state:
@@ -103,7 +198,7 @@ def init_session_state():
     if 'last_check' not in st.session_state:
         st.session_state.last_check = None
     if 'scan_all' not in st.session_state:
-        st.session_state.scan_all = True  # По умолчанию сканируем все письма
+        st.session_state.scan_all = True
 
 
 def get_model_path():
@@ -267,6 +362,60 @@ def process_emails(scan_all: bool = True, progress_placeholder=None) -> list:
     return found_contracts
 
 
+def process_whatsapp_text(text: str, msg, source: str) -> Optional[Dict]:
+    """Обработка текста из WhatsApp (сообщение или вложение)."""
+    if not text or len(text) < 20:
+        return None
+    
+    msg_id = getattr(msg, 'id', '')
+    if msg_id and msg_id in st.session_state.processed_whatsapp_message_ids:
+        return None
+    
+    init_document_processor()
+    init_rag()
+    
+    is_contract = False
+    if st.session_state.rag:
+        is_contract, _ = st.session_state.rag.is_contract(text)
+    
+    if not is_contract:
+        return None
+    
+    if st.session_state.document_processor:
+        info = st.session_state.document_processor.extract_contract_info(text)
+    else:
+        info = {'document_type': 'Договор', 'summary': text[:150]}
+    
+    msg_date = getattr(msg, 'timestamp', None) or datetime.now()
+    if hasattr(msg_date, 'tzinfo') and msg_date.tzinfo is not None:
+        msg_date = msg_date.replace(tzinfo=None)
+    
+    result = {
+        'order_number': st.session_state.order_number,
+        'email_id': getattr(msg, 'id', ''),
+        'email_from': 'WhatsApp: {}'.format(getattr(msg, 'sender', '')),
+        'email_subject': 'Чат: {}'.format(getattr(msg, 'chat_name', '')),
+        'email_date': msg_date,
+        'document_type': info.get('document_type', 'Договор'),
+        'summary': info.get('summary', text[:150]),
+        'parties': info.get('parties', ''),
+        'amount': info.get('amount', ''),
+        'responsible': getattr(msg, 'sender', ''),
+        'processed_at': datetime.now().strftime('%Y-%m-%d %H:%M:%S'),
+        'execution_period': info.get('execution_period', ''),
+        'penalties': info.get('penalties', ''),
+        'source': source
+    }
+    
+    st.session_state.processed_documents.append(result)
+    st.session_state.order_number += 1
+    st.session_state.whatsapp_messages.append(msg)
+    if msg_id:
+        st.session_state.processed_whatsapp_message_ids.add(msg_id)
+    
+    return result
+
+
 def create_excel_dataframe() -> pd.DataFrame:
     """Создание DataFrame для Excel"""
     if not st.session_state.processed_documents:
@@ -279,22 +428,25 @@ def create_excel_dataframe() -> pd.DataFrame:
         'order_number': '№ п/п',
         'email_date': 'Дата входящего',
         'summary': 'Описание документа',
-        'email_from': 'Email отправителя',
+        'email_from': 'Источник',
         'responsible': 'Ответственные',
         'processed_at': 'Дата обработки',
         'document_type': 'Тип документа',
-        'email_subject': 'Тема письма',
+        'email_subject': 'Тема/Чат',
         'parties': 'Стороны договора',
-        'amount': 'Сумма'
+        'amount': 'Сумма',
+        'execution_period': 'Срок исполнения',
+        'penalties': 'Пени/Штрафы',
+        'source': 'Канал'
     }
     
     df = df.rename(columns=columns_mapping)
     
     # Порядок колонок
     ordered_columns = [
-        '№ п/п', 'Дата входящего', 'Описание документа', 
-        'Email отправителя', 'Ответственные', 'Дата обработки',
-        'Тип документа', 'Тема письма', 'Стороны договора', 'Сумма'
+        '№ п/п', 'Дата входящего', 'Тип документа', 'Описание документа', 
+        'Стороны договора', 'Сумма', 'Срок исполнения', 'Пени/Штрафы',
+        'Источник', 'Ответственные', 'Дата обработки', 'Тема/Чат', 'Канал'
     ]
     
     # Оставляем только существующие колонки
@@ -317,7 +469,7 @@ def export_to_excel() -> bytes:
             try:
                 # Убираем timezone информацию
                 df[col] = pd.to_datetime(df[col]).dt.tz_localize(None)
-            except:
+            except (TypeError, ValueError):
                 # Если уже без timezone, просто форматируем как строку
                 df[col] = df[col].astype(str)
     
@@ -347,12 +499,22 @@ def export_to_excel() -> bytes:
 def main():
     init_session_state()
     
+    # ===========================================
+    # АУТЕНТИФИКАЦИЯ - проверяем ПЕРЕД показом UI
+    # ===========================================
+    if not require_auth():
+        # Пользователь не авторизован - показана форма входа
+        return
+    
     # Заголовок
     st.markdown('<h1 class="main-header">📄 Document Processing Agent</h1>', unsafe_allow_html=True)
     st.markdown("**Интеллектуальный агент для обработки договоров из почты**")
     
     # Боковая панель - настройки
     with st.sidebar:
+        # Меню пользователя (показывает имя и кнопку выхода)
+        show_user_menu()
+        
         st.header("⚙️ Настройки")
         
         # Статус подключения
@@ -381,14 +543,23 @@ def main():
         col1, col2 = st.columns(2)
         with col1:
             if st.button("🔌 Подключить", use_container_width=True):
-                if email_address and password:
+                # Валидация входных данных
+                if not email_address or not password:
+                    st.warning("Введите email и пароль")
+                elif not validate_email(email_address):
+                    st.error("❌ Некорректный формат email адреса")
+                elif not validate_password(password):
+                    st.error("❌ Пароль слишком короткий или длинный")
+                elif not login_rate_limiter.is_allowed(email_address):
+                    remaining = login_rate_limiter.get_remaining_time(email_address)
+                    st.error(f"❌ Слишком много попыток. Подождите {remaining} сек.")
+                else:
                     with st.spinner("Подключение..."):
                         if connect_email(email_address, password):
                             st.success("✅ Успешно подключено!")
+                            login_rate_limiter.reset(email_address)  # Сброс при успехе
                         else:
-                            st.error("❌ Ошибка подключения")
-                else:
-                    st.warning("Введите email и пароль")
+                            st.error("❌ Ошибка подключения. Проверьте данные.")
         
         with col2:
             if st.button("🔌 Отключить", use_container_width=True):
@@ -409,16 +580,15 @@ def main():
         
         # Кнопка выхода
         st.subheader("🚪 Выход")
-        if st.button("❌ Закрыть приложение", use_container_width=True, type="secondary"):
+        if st.button("❌ Отключиться от почты", use_container_width=True, type="secondary"):
             st.session_state.email_agent.disconnect()
-            st.warning("Приложение будет закрыто...")
-            time.sleep(1)
-            # Останавливаем Streamlit
-            import os
-            os._exit(0)
+            st.session_state.connected = False
+            st.session_state.monitoring = False
+            st.info("✅ Сессия завершена. Можете закрыть вкладку браузера.")
+            st.rerun()
     
     # Основной контент
-    tab1, tab2, tab3 = st.tabs(["📬 Обработка почты", "📋 Результаты", "📖 Справка"])
+    tab1, tab2, tab3, tab4 = st.tabs(["📬 Обработка почты", "📱 WhatsApp", "📋 Результаты", "📖 Справка"])
     
     with tab1:
         st.header("📬 Обработка писем")
@@ -468,15 +638,16 @@ def main():
                     with results_placeholder.container():
                         st.success(f"✅ Найдено {len(found)} новых договоров!")
                         for doc in found:
-                            # Экранируем HTML в пользовательских данных
-                            safe_subject = html.escape(str(doc.get('email_subject', 'Без темы')))
-                            safe_from = html.escape(str(doc.get('email_from', '')))
-                            safe_summary = html.escape(str(doc.get('summary', ''))[:100])
+                            # Используем безопасную санитизацию
+                            safe_subject = sanitize_html(doc.get('email_subject', 'Без темы'), max_length=100)
+                            safe_from = sanitize_html(doc.get('email_from', ''), max_length=100)
+                            safe_summary = sanitize_html(doc.get('summary', ''), max_length=150)
+                            order_num = int(doc.get('order_number', 0))  # Только числа
                             st.markdown(f"""
                             <div class="contract-found">
-                                <strong>№{doc['order_number']}</strong>: {safe_subject}<br>
+                                <strong>№{order_num}</strong>: {safe_subject}<br>
                                 📧 От: {safe_from}<br>
-                                📝 {safe_summary}...
+                                📝 {safe_summary}
                             </div>
                             """, unsafe_allow_html=True)
                 else:
@@ -493,6 +664,318 @@ def main():
                 # В реальном приложении здесь будет polling с интервалом
     
     with tab2:
+        st.header("📱 WhatsApp (Playwright)")
+        st.markdown("**Автоматический поиск и обработка договоров из WhatsApp**")
+        
+        # Проверка Playwright
+        if not PLAYWRIGHT_AVAILABLE:
+            st.error("⚠️ Для работы с WhatsApp необходим Playwright")
+            st.code("pip install playwright\nplaywright install chromium", language="bash")
+            st.info("После установки перезапустите приложение")
+        else:
+            # Статус
+            col_status1, col_status2 = st.columns(2)
+            with col_status1:
+                if st.session_state.whatsapp_processing:
+                    st.info("⏳ Идёт сканирование...")
+                else:
+                    stats = st.session_state.whatsapp_stats
+                    if stats.get('documents', 0) > 0:
+                        st.success(f"✅ Найдено {stats.get('documents', 0)} документов")
+                    else:
+                        st.warning("🔴 Документы не загружены")
+            with col_status2:
+                stats = st.session_state.whatsapp_stats
+                st.metric("📋 Договоров", stats.get('contracts', 0))
+            
+            st.divider()
+            
+            # Инструкция
+            with st.expander("📖 Как это работает", expanded=False):
+                st.markdown("""
+                ### Автоматический поиск документов:
+                
+                1. **Нажмите "Сканировать WhatsApp"** - откроется браузер
+                2. **Отсканируйте QR-код** в WhatsApp на телефоне (если нужно):
+                   - WhatsApp → Настройки → Связанные устройства → Привязать устройство
+                3. **Дождитесь завершения** - система автоматически:
+                   - Откроет каждый чат
+                   - Найдёт документы (PDF, DOCX, XLSX)
+                   - Скачает их и классифицирует
+                
+                ⚠️ **Важно:** 
+                - Сессия сохраняется - при повторном запуске QR-код обычно не нужен
+                - Сканирование занимает 2-5 минут в зависимости от количества чатов
+                """)
+            
+            # Настройки сканирования
+            st.subheader("⚙️ Параметры сканирования")
+            col_opt1, col_opt2 = st.columns(2)
+            with col_opt1:
+                chat_limit = st.slider("Количество чатов", min_value=3, max_value=50, value=10, key="wa_chat_limit")
+            with col_opt2:
+                doc_limit = st.slider("Макс. документов", min_value=5, max_value=100, value=30, key="wa_doc_limit")
+            
+            st.divider()
+            
+            # Кнопка сканирования
+            col_scan1, col_scan2 = st.columns(2)
+            
+            with col_scan1:
+                if st.button("🔍 Сканировать WhatsApp", use_container_width=True, type="primary",
+                            disabled=st.session_state.whatsapp_processing, key="wa_scan"):
+                    st.session_state.whatsapp_processing = True
+                    
+                    progress_bar = st.progress(0, text="Запуск браузера...")
+                    status_text = st.empty()
+                    
+                    try:
+                        status_text.info("🚀 Запускается браузер... Ожидайте появления окна с WhatsApp Web")
+                        progress_bar.progress(0.05)
+                        
+                        # Путь к результатам
+                        results_file = Path("whatsapp_scan_results.json")
+                        if results_file.exists():
+                            results_file.unlink()
+                        
+                        # Запускаем скрипт сканирования как отдельный процесс
+                        # Используем тот же Python что и Streamlit
+                        cmd = [
+                            sys.executable, "-m", "whatsapp.run_scan",
+                            "--output", str(results_file),
+                            "--chats", str(chat_limit),
+                            "--docs", str(doc_limit),
+                            "--timeout", "120"
+                        ]
+                        
+                        logger.info(f"Starting WhatsApp scan: {' '.join(cmd)}")
+                        
+                        # Запускаем процесс
+                        process = subprocess.Popen(
+                            cmd,
+                            stdout=subprocess.PIPE,
+                            stderr=subprocess.STDOUT,
+                            text=True,
+                            cwd=str(Path(__file__).parent.parent)
+                        )
+                        
+                        status_text.info("📱 Если нужно - отсканируйте QR-код в открывшемся браузере")
+                        progress_bar.progress(0.1, text="Ожидание входа в WhatsApp...")
+                        
+                        # Ждём завершения процесса с таймаутом
+                        max_wait = 600  # 10 минут максимум
+                        start_time = time.time()
+                        
+                        while process.poll() is None:
+                            elapsed = time.time() - start_time
+                            if elapsed > max_wait:
+                                process.terminate()
+                                st.error("❌ Таймаут сканирования (10 минут)")
+                                break
+                            
+                            # Обновляем прогресс
+                            progress = min(0.9, 0.1 + (elapsed / max_wait) * 0.8)
+                            progress_bar.progress(progress, text=f"Сканирование... ({int(elapsed)}с)")
+                            
+                            # Читаем вывод процесса для логов
+                            try:
+                                line = process.stdout.readline()
+                                if line:
+                                    line = line.strip()
+                                    if line:
+                                        logger.info(line)
+                                        # Показываем ключевые события
+                                        if "Connected" in line or "подключ" in line.lower():
+                                            status_text.success("✅ Подключено к WhatsApp!")
+                                        elif "Scanning" in line or "сканиров" in line.lower():
+                                            status_text.info("🔍 Сканирование чатов...")
+                                        elif "Found" in line or "найден" in line.lower():
+                                            status_text.info(f"📄 {line}")
+                            except:
+                                pass
+                            
+                            time.sleep(0.5)
+                        
+                        # Читаем результаты
+                        if results_file.exists():
+                            try:
+                                result_data = json.loads(results_file.read_text(encoding='utf-8'))
+                                documents = result_data.get('documents', [])
+                                
+                                progress_bar.progress(0.95, text="Классификация документов...")
+                                status_text.text("🤖 Анализ документов с помощью LLM...")
+                                
+                                init_document_processor()
+                                init_rag()
+                                
+                                # Классификация
+                                contracts_found = 0
+                                for doc in documents:
+                                    file_path = doc.get('file_path', '')
+                                    if file_path and file_path in st.session_state.processed_whatsapp_files:
+                                        continue
+                                    
+                                    is_contract = doc.get('is_contract', False)
+                                    confidence = 0.5 if is_contract else 0.0
+                                    contract_info = {}
+                                    text = doc.get('text', '')
+                                    
+                                    # Deep classification with LLM
+                                    if st.session_state.document_processor and text:
+                                        try:
+                                            is_contract, confidence = st.session_state.document_processor.is_contract(text)
+                                            if is_contract:
+                                                contract_info = st.session_state.document_processor.extract_contract_info(text)
+                                        except Exception as e:
+                                            logger.debug(f"Classification error: {e}")
+                                    
+                                    filename = doc.get('filename', 'unknown')
+                                    sender = doc.get('sender', 'Unknown')
+                                    chat_name = doc.get('chat_name', 'Unknown')
+                                    
+                                    if is_contract:
+                                        contracts_found += 1
+                                        
+                                        # Add to results
+                                        result = {
+                                            'order_number': st.session_state.order_number,
+                                            'email_id': file_path,
+                                            'email_from': f'WhatsApp: {sender}',
+                                            'email_subject': f'Чат: {chat_name}',
+                                            'email_date': datetime.now(),
+                                            'document_type': contract_info.get('document_type', 'Договор'),
+                                            'summary': contract_info.get('summary', text[:150] if text else filename)[:200],
+                                            'parties': contract_info.get('parties', ''),
+                                            'amount': contract_info.get('amount', ''),
+                                            'responsible': sender,
+                                            'processed_at': datetime.now().strftime('%Y-%m-%d %H:%M:%S'),
+                                            'execution_period': contract_info.get('execution_period', ''),
+                                            'penalties': contract_info.get('penalties', ''),
+                                            'source': f'whatsapp:{filename}',
+                                            'confidence': f'{confidence:.0%}'
+                                        }
+                                        
+                                        st.session_state.processed_documents.append(result)
+                                        st.session_state.order_number += 1
+                                        if file_path:
+                                            st.session_state.processed_whatsapp_files.add(file_path)
+                                    
+                                    # Save document info
+                                    st.session_state.whatsapp_documents.append({
+                                        'filename': filename,
+                                        'sender': sender,
+                                        'chat': chat_name,
+                                        'is_contract': is_contract,
+                                        'confidence': confidence
+                                    })
+                                
+                                # Update stats
+                                st.session_state.whatsapp_stats = {
+                                    'chats': chat_limit,
+                                    'documents': len(documents),
+                                    'contracts': contracts_found
+                                }
+                                
+                                progress_bar.progress(1.0, text="Готово!")
+                                status_text.empty()
+                                
+                                if len(documents) == 0:
+                                    st.warning("📭 Документы не найдены. Убедитесь что в чатах есть PDF/DOC/XLSX файлы.")
+                                else:
+                                    st.success(f"✅ Найдено {len(documents)} документов, из них {contracts_found} договоров!")
+                                
+                            except json.JSONDecodeError as e:
+                                st.error(f"❌ Ошибка чтения результатов: {e}")
+                        else:
+                            st.error("❌ Результаты сканирования не найдены. Возможно, произошла ошибка.")
+                        
+                        st.session_state.whatsapp_processing = False
+                        
+                    except Exception as e:
+                        st.error(f"❌ Ошибка сканирования: {e}")
+                        logger.error(f"Ошибка сканирования WhatsApp: {e}")
+                        import traceback
+                        logger.error(traceback.format_exc())
+                        st.session_state.whatsapp_processing = False
+            
+            with col_scan2:
+                if st.button("🗑️ Очистить результаты", use_container_width=True, key="wa_clear"):
+                    st.session_state.whatsapp_documents = []
+                    st.session_state.whatsapp_stats = {'chats': 0, 'documents': 0, 'contracts': 0}
+                    st.session_state.processed_whatsapp_files = set()
+                    st.rerun()
+            
+            # Показываем логи
+            st.divider()
+            with st.expander("📋 Логи обработки", expanded=True):
+                logs = whatsapp_log_handler.get_logs()
+                if logs:
+                    log_text = "\n".join(logs[:100])
+                    st.text_area("Логи", value=log_text, height=300, disabled=True, label_visibility="collapsed")
+                    if st.button("🗑️ Очистить логи", key="wa_clear_logs"):
+                        whatsapp_log_handler.clear_logs()
+                        st.rerun()
+                else:
+                    st.info("Логи появятся после начала сканирования")
+            
+            # Результаты сканирования
+            if st.session_state.whatsapp_documents:
+                st.divider()
+                st.subheader("📄 Найденные документы")
+                
+                # Фильтр
+                show_contracts_only = st.checkbox("Показать только договоры", value=False, key="wa_filter_contracts")
+                
+                docs_to_show = st.session_state.whatsapp_documents
+                if show_contracts_only:
+                    docs_to_show = [d for d in docs_to_show if d.get('is_contract')]
+                
+                for doc in docs_to_show[-20:]:  # Last 20
+                    contract_badge = "📋 ДОГОВОР" if doc.get('is_contract') else "📄"
+                    conf = doc.get('confidence', 0)
+                    conf_str = f" ({conf:.0%})" if conf > 0 else ""
+                    
+                    st.markdown(f"""
+                    <div class="{'contract-found' if doc.get('is_contract') else 'info-box'}">
+                        <strong>{contract_badge} {doc.get('filename', 'Без имени')}</strong>{conf_str}<br>
+                        👤 От: {doc.get('sender', 'Неизвестно')}<br>
+                        💬 Чат: {doc.get('chat', 'Неизвестно')}
+                    </div>
+                    """, unsafe_allow_html=True)
+        
+        # Резервный вариант - экспорт чатов
+        st.divider()
+        with st.expander("📂 Альтернатива: загрузка экспортированного чата", expanded=False):
+            st.markdown("Если автоматический режим недоступен, можно загрузить экспортированный чат:")
+            
+            uploaded_file = st.file_uploader(
+                "Выберите .txt файл экспорта WhatsApp",
+                type=['txt'],
+                help="Файл экспорта чата из WhatsApp",
+                key="whatsapp_export_file"
+            )
+            
+            if uploaded_file is not None:
+                import tempfile
+                with tempfile.NamedTemporaryFile(mode='wb', suffix='.txt', delete=False) as f:
+                    f.write(uploaded_file.getvalue())
+                    temp_path = f.name
+                
+                try:
+                    with st.spinner("📱 Парсинг чата..."):
+                        chat = st.session_state.whatsapp_agent.parse_exported_chat(temp_path)
+                    
+                    st.success(f"✅ Загружено {len(chat.messages)} сообщений")
+                    contract_msgs = [m for m in chat.messages if m.is_contract]
+                    st.info(f"📋 Найдено {len(contract_msgs)} сообщений с договорами")
+                    
+                except Exception as e:
+                    st.error(f"Ошибка: {e}")
+                finally:
+                    import os
+                    os.unlink(temp_path)
+    
+    with tab3:
         st.header("📋 Обработанные документы")
         
         if st.session_state.processed_documents:
@@ -558,7 +1041,7 @@ def main():
                         if single_df[col].dtype == 'datetime64[ns, UTC]' or str(single_df[col].dtype).startswith('datetime'):
                             try:
                                 single_df[col] = pd.to_datetime(single_df[col]).dt.tz_localize(None)
-                            except:
+                            except (TypeError, ValueError):
                                 single_df[col] = single_df[col].astype(str)
                         if single_df[col].apply(lambda x: hasattr(x, 'tzinfo') and getattr(x, 'tzinfo', None) is not None).any():
                             single_df[col] = single_df[col].apply(lambda x: x.replace(tzinfo=None) if hasattr(x, 'replace') and hasattr(x, 'tzinfo') else x)
@@ -578,14 +1061,14 @@ def main():
         else:
             st.info("📭 Пока нет обработанных документов")
     
-    with tab3:
+    with tab4:
         st.header("📖 Справка")
         
         st.markdown("""
         ### 🎯 О приложении
         
         **Document Processing Agent** - интеллектуальный агент для автоматической обработки 
-        юридических документов и договоров из электронной почты.
+        юридических документов и договоров из электронной почты и WhatsApp.
         
         ### 📧 Поддерживаемые почтовые сервисы
         
@@ -595,6 +1078,26 @@ def main():
         | Yandex | imap.yandex.ru |
         | Mail.ru | imap.mail.ru |
         | Outlook | outlook.office365.com |
+        
+        ### 📱 WhatsApp
+        
+        **Два режима работы:**
+        
+        | Режим | Описание |
+        |-------|----------|
+        | 📂 Экспорт чата | Загрузите .txt файл экспорта из WhatsApp |
+        | 🌐 WhatsApp Web (Playwright) | Автоматическое сканирование чатов |
+        
+        **Автоматический режим (Playwright):**
+        1. Нажмите "Подключиться к WhatsApp"
+        2. Отсканируйте QR-код (только первый раз)
+        3. Нажмите "Сканировать чаты"
+        4. Система автоматически найдёт и скачает документы
+        
+        **Как экспортировать чат вручную:**
+        1. Откройте чат → ⋮ → Ещё → Экспорт чата
+        2. Выберите "Без медиафайлов"
+        3. Загрузите .txt файл в приложение
         
         ### 🔐 Настройка Gmail
         
@@ -609,20 +1112,24 @@ def main():
         1. Перейдите в [Настройки безопасности](https://passport.yandex.ru/profile)
         2. Создайте пароль приложения
         
-        ### 📊 Формат Excel таблицы
+        ### 📊 Извлекаемая информация
         
-        | Колонка | Описание |
-        |---------|----------|
-        | № п/п | Порядковый номер |
-        | Дата входящего | Дата получения письма |
-        | Описание документа | Краткое описание договора |
-        | Email отправителя | Адрес отправителя |
+        | Поле | Описание |
+        |------|----------|
+        | Тип документа | Договор аренды, поставки, подряда и т.д. |
+        | Стороны | Участники договора |
+        | Сумма | Сумма договора |
+        | Дата | Дата заключения |
+        | Срок действия | До какой даты действует |
+        | **Срок исполнения** | Когда нужно выполнить обязательства |
+        | **Ответственность** | Пени, неустойки, штрафы |
         | Ответственные | ФИО ответственных лиц |
-        | Дата обработки | Когда был обработан |
         
         ### ⚙️ RAG Система
         
-        Используется упрощённая RAG система с:
+        Используется RAG система с:
+        - **Векторный поиск**: ChromaDB + sentence-transformers
+        - **Автоматическое обучение**: Система запоминает обработанные договоры
         - **Pre-Retrieval**: Расширение запросов юридическими синонимами
         - **Post-Retrieval**: Переранжирование по релевантности
         
@@ -632,3 +1139,4 @@ def main():
 
 if __name__ == "__main__":
     main()
+

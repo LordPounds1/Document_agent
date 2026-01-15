@@ -1,10 +1,11 @@
-"""Упрощённый процессор документов с LLM"""
+"""Упрощённый процессор документов с LLM."""
 
 import logging
 import re
-from typing import Dict, Any, Optional
 from datetime import datetime
+from typing import Any, Dict, List, Optional
 
+from config import Config
 from core.llm import LLMClient
 from core.rag import SimpleRAG
 
@@ -14,11 +15,13 @@ logger = logging.getLogger(__name__)
 class DocumentProcessor:
     """Процессор документов для извлечения информации из договоров"""
     
-    def __init__(self, model_path: str, templates_dir: str = "templates"):
+    def __init__(self, model_path: str, templates_dir: str = "templates",
+                 enable_learning: bool = None):
         """
         Args:
             model_path: Путь к GGUF модели
             templates_dir: Директория с шаблонами договоров
+            enable_learning: Включить автоматическое обучение (если None - берётся из Config)
         """
         self.model_path = model_path
         self.llm = None
@@ -28,6 +31,9 @@ class DocumentProcessor:
         self._llm_initialized = False
         self._rag_initialized = False
         self.templates_dir = templates_dir
+        
+        # Настройки обучения
+        self.enable_learning = enable_learning if enable_learning is not None else Config.RAG_ENABLE_LEARNING
     
     def _init_llm(self):
         """Инициализация LLM"""
@@ -48,9 +54,14 @@ class DocumentProcessor:
             return
         
         try:
-            self.rag = SimpleRAG(templates_dir=self.templates_dir)
+            self.rag = SimpleRAG(
+                templates_dir=self.templates_dir,
+                persist_dir=Config.RAG_PERSIST_DIR,
+                use_gpu=Config.RAG_USE_GPU,
+                enable_learning=self.enable_learning
+            )
             self._rag_initialized = True
-            logger.info("✅ RAG initialized")
+            logger.info(f"✅ RAG initialized (learning: {self.enable_learning})")
         except Exception as e:
             logger.error(f"❌ RAG init failed: {e}")
             self.rag = None
@@ -86,6 +97,8 @@ class DocumentProcessor:
             - amount: Сумма
             - date: Дата договора
             - deadline: Срок действия
+            - execution_period: Срок исполнения обязательства
+            - penalties: Ответственность (пени, неустойки, штрафы)
             - responsible: Ответственные лица
             - summary: Краткое описание
         """
@@ -108,9 +121,11 @@ class DocumentProcessor:
 ПРЕДМЕТ: [предмет договора]
 СУММА: [сумма если есть]
 ДАТА: [дата договора]
-СРОК: [срок действия]
-ОТВЕТСТВЕННЫЕ: [ФИО ответственных лиц]
-ОПИСАНИЕ: [краткое описание в 1-2 предложения]
+СРОК_ДЕЙСТВИЯ: [срок действия договора]
+СРОК_ИСПОЛНЕНИЯ: [срок исполнения обязательства - когда должны выполнить работу/поставить товар/оказать услугу]
+ОТВЕТСТВЕННОСТЬ: [пени, неустойки, штрафы за нарушение - размер в % или сумма]
+ОТВЕТСТВЕННЫЕ_ЛИЦА: [ФИО ответственных лиц]
+ОПИСАНИЕ: [краткое описание договора в 1-2 предложения, включая ключевые условия]
 
 Ответ:"""
 
@@ -130,6 +145,8 @@ class DocumentProcessor:
             'amount': '',
             'date': '',
             'deadline': '',
+            'execution_period': '',
+            'penalties': '',
             'responsible': '',
             'summary': '',
             'processed_at': datetime.now().strftime('%Y-%m-%d %H:%M:%S')
@@ -142,8 +159,10 @@ class DocumentProcessor:
             'subject': r'ПРЕДМЕТ:\s*(.+?)(?:\n|$)',
             'amount': r'СУММА:\s*(.+?)(?:\n|$)',
             'date': r'ДАТА:\s*(.+?)(?:\n|$)',
-            'deadline': r'СРОК:\s*(.+?)(?:\n|$)',
-            'responsible': r'ОТВЕТСТВЕННЫЕ:\s*(.+?)(?:\n|$)',
+            'deadline': r'СРОК_ДЕЙСТВИЯ:\s*(.+?)(?:\n|$)',
+            'execution_period': r'СРОК_ИСПОЛНЕНИЯ:\s*(.+?)(?:\n|$)',
+            'penalties': r'ОТВЕТСТВЕННОСТЬ:\s*(.+?)(?:\n|$)',
+            'responsible': r'ОТВЕТСТВЕННЫЕ_ЛИЦА:\s*(.+?)(?:\n|$)',
             'summary': r'ОПИСАНИЕ:\s*(.+?)(?:\n|$)',
         }
         
@@ -151,12 +170,22 @@ class DocumentProcessor:
             match = re.search(pattern, response, re.IGNORECASE)
             if match:
                 value = match.group(1).strip()
-                if value and value.lower() not in ['не указано', 'нет', '-', 'n/a']:
+                if value and value.lower() not in ['не указано', 'нет', '-', 'n/a', 'не найдено']:
                     result[field] = value
         
         # Если summary пустой, берём первые 100 символов
         if not result['summary']:
             result['summary'] = original_text[:100].replace('\n', ' ').strip() + '...'
+        
+        # Дополняем summary информацией о пенях и сроках исполнения если есть
+        summary_additions = []
+        if result['execution_period']:
+            summary_additions.append(f"Срок исполнения: {result['execution_period']}")
+        if result['penalties']:
+            summary_additions.append(f"Ответственность: {result['penalties']}")
+        
+        if summary_additions and result['summary']:
+            result['summary'] = result['summary'].rstrip('.') + '. ' + '. '.join(summary_additions) + '.'
         
         return result
     
@@ -169,6 +198,8 @@ class DocumentProcessor:
             'amount': '',
             'date': '',
             'deadline': '',
+            'execution_period': '',
+            'penalties': '',
             'responsible': '',
             'summary': text[:150].replace('\n', ' ').strip() + '...',
             'processed_at': datetime.now().strftime('%Y-%m-%d %H:%M:%S')
@@ -198,15 +229,42 @@ class DocumentProcessor:
         if date_match:
             result['date'] = date_match.group(1)
         
+        # Поиск пени/неустойки/штрафов
+        penalties_patterns = [
+            r'(?:пеня|пени)\s*(?:в размере)?\s*([\d,\.]+\s*%[^.]*)',
+            r'(?:неустойка|неустойку)\s*(?:в размере)?\s*([\d,\.]+\s*%[^.]*)',
+            r'(?:штраф|штрафа?)\s*(?:в размере)?\s*([\d,\.]+\s*%[^.]*)',
+            r'([\d,\.]+\s*%\s*(?:за каждый день|от суммы)[^.]*)',
+        ]
+        for pattern in penalties_patterns:
+            match = re.search(pattern, text, re.IGNORECASE)
+            if match:
+                result['penalties'] = match.group(1).strip()
+                break
+        
+        # Поиск срока исполнения
+        execution_patterns = [
+            r'(?:срок\s+исполнения|выполнить\s+в\s+срок|в\s+течение)\s*[:—-]?\s*([^.]+?)(?:\.|$)',
+            r'(?:поставить|выполнить|оказать)\s+(?:в\s+срок\s+)?до\s+([^.]+?)(?:\.|$)',
+            r'(?:не\s+позднее)\s+([^.]+?)(?:\.|$)',
+        ]
+        for pattern in execution_patterns:
+            match = re.search(pattern, text, re.IGNORECASE)
+            if match:
+                result['execution_period'] = match.group(1).strip()[:100]
+                break
+        
         return result
     
     def process_email_with_contract(self, email_data: Dict, 
-                                    contract_text: str) -> Dict[str, Any]:
+                                    contract_text: str,
+                                    auto_learn: bool = True) -> Dict[str, Any]:
         """Обработка email с договором
         
         Args:
             email_data: Данные письма
             contract_text: Текст договора (из тела или вложения)
+            auto_learn: Автоматически обучить RAG на этом договоре
             
         Returns:
             Полная информация для записи в Excel
@@ -214,8 +272,28 @@ class DocumentProcessor:
         # Извлекаем информацию из договора
         contract_info = self.extract_contract_info(contract_text)
         
+        # Автоматическое обучение RAG на новом договоре
+        learning_result = None
+        if auto_learn and self.rag:
+            # Извлекаем стороны из текста для метаданных
+            parties = []
+            if contract_info.get('parties'):
+                parties = [p.strip() for p in contract_info['parties'].split(',')]
+            
+            learning_result = self.rag.learn_from_document(
+                content=contract_text,
+                document_type=contract_info.get('document_type', 'unknown'),
+                source='email',
+                parties=parties
+            )
+            
+            if learning_result.get('success'):
+                logger.info(f"📚 RAG обучился на договоре: {contract_info.get('document_type')}")
+            else:
+                logger.debug(f"RAG не обучился: {learning_result.get('message')}")
+        
         # Формируем результат для Excel
-        return {
+        result = {
             'email_id': email_data.get('id', ''),
             'email_from': email_data.get('from', ''),
             'email_subject': email_data.get('subject', ''),
@@ -225,8 +303,69 @@ class DocumentProcessor:
             'parties': contract_info['parties'],
             'amount': contract_info['amount'],
             'responsible': contract_info['responsible'],
-            'processed_at': contract_info['processed_at']
+            'processed_at': contract_info['processed_at'],
+            'learned': learning_result.get('success', False) if learning_result else False
         }
+        
+        return result
+    
+    def process_document(self, text: str, source: str = "manual", 
+                        auto_learn: bool = True) -> Dict[str, Any]:
+        """Универсальная обработка документа с автоматическим обучением.
+        
+        Args:
+            text: Текст документа
+            source: Источник (manual, file, email)
+            auto_learn: Автоматически обучить RAG
+            
+        Returns:
+            Результат обработки с информацией об обучении
+        """
+        # Проверяем, является ли это договором
+        is_contract, confidence = self.is_contract(text)
+        
+        if not is_contract:
+            return {
+                'success': False,
+                'is_contract': False,
+                'confidence': confidence,
+                'message': 'Документ не является договором'
+            }
+        
+        # Извлекаем информацию
+        contract_info = self.extract_contract_info(text)
+        
+        # Обучение RAG
+        learning_result = None
+        if auto_learn:
+            self._init_rag()
+            if self.rag:
+                parties = []
+                if contract_info.get('parties'):
+                    parties = [p.strip() for p in contract_info['parties'].split(',')]
+                
+                learning_result = self.rag.learn_from_document(
+                    content=text,
+                    document_type=contract_info.get('document_type', 'unknown'),
+                    source=source,
+                    parties=parties
+                )
+        
+        return {
+            'success': True,
+            'is_contract': True,
+            'confidence': confidence,
+            'contract_info': contract_info,
+            'learning': learning_result,
+            'message': 'Документ успешно обработан'
+        }
+    
+    def get_learning_stats(self) -> Dict[str, Any]:
+        """Получение статистики обучения RAG."""
+        self._init_rag()
+        if self.rag:
+            return self.rag.get_learning_stats()
+        return {'error': 'RAG не инициализирован'}
     
     def close(self):
         """Освобождение ресурсов"""
@@ -234,3 +373,4 @@ class DocumentProcessor:
             self.llm.close()
             self.llm = None
             self._llm_initialized = False
+

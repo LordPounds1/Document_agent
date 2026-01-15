@@ -1,18 +1,18 @@
-"""Simplified LLM Client - обёртка над llama-cpp-python"""
+"""Simplified LLM Client - обёртка над llama-cpp-python."""
 
-import logging
 import json
+import logging
 import re
-from typing import Optional, Dict, Any
+from threading import Semaphore
+from typing import Any, Dict, Optional
 
 logger = logging.getLogger(__name__)
 
 
 class LLMClient:
-    """Упрощённый клиент для работы с локальной LLM"""
-    
+    """Упрощённый клиент для работы с локальной LLM."""
+
     # Thread-safety: ограничение параллельных GPU операций
-    from threading import Semaphore
     _inference_semaphore = Semaphore(2)  # Max 2 concurrent requests
     
     def __init__(self, model_path: str, n_ctx: int = 2048, n_gpu_layers: int = -1):
@@ -169,3 +169,4 @@ class LLMClient:
         
         logger.debug(f"Extracted fields via regex: {list(result.keys())}")
         return result
+
