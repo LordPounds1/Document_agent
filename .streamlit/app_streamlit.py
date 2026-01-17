@@ -11,14 +11,16 @@
 5. Мониторинг новых писем
 """
 
-import html
 import io
+import json
 import logging
+import subprocess
 import sys
+import threading
 import time
 from datetime import datetime
 from pathlib import Path
-from typing import Dict, Optional
+from typing import Optional
 
 import pandas as pd
 import streamlit as st
@@ -28,13 +30,12 @@ sys.path.insert(0, str(Path(__file__).parent.parent))
 
 # Security imports
 from utils.security import (
+    login_rate_limiter,
+    sanitize_html,
     validate_email,
     validate_password,
-    sanitize_html,
-    sanitize_filename,
-    login_rate_limiter,
 )
-from utils.auth import require_auth, show_user_menu, logout
+from utils.auth import require_auth, show_user_menu
 
 # Настройка логирования
 logging.basicConfig(level=logging.INFO)
@@ -43,28 +44,27 @@ logger = logging.getLogger(__name__)
 # Кастомный handler для отображения логов в Streamlit
 class StreamlitLogHandler(logging.Handler):
     """Handler для сохранения логов в session_state (потокобезопасный)."""
-    
+
     def __init__(self, max_lines: int = 200):
         super().__init__()
         self.max_lines = max_lines
         self.setLevel(logging.INFO)
         self._logs = []  # Внутренний список логов
-        import threading
         self._lock = threading.Lock()
-        
+
         # Форматтер для логов (упрощённый формат)
         formatter = logging.Formatter(
             '%(asctime)s [%(levelname)s] %(message)s',
             datefmt='%H:%M:%S'
         )
         self.setFormatter(formatter)
-    
+
     def emit(self, record):
         """Сохраняет лог во внутренний список (потокобезопасно)."""
         try:
             # Форматируем сообщение
             log_entry = self.format(record)
-            
+
             with self._lock:
                 # Добавляем в начало списка (новые сверху)
                 self._logs.insert(0, log_entry)
@@ -106,10 +106,6 @@ from processors.document import DocumentProcessor
 from core.rag import SimpleRAG
 
 # Импорт WhatsApp Playwright модуля
-import subprocess
-import json
-import threading
-
 try:
     import playwright
     from whatsapp.monitor import WhatsAppMonitor, get_monitor, create_monitor, stop_monitor
