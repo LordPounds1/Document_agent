@@ -4,14 +4,12 @@ Defines the common contract for all document sources (Email, WhatsApp, etc.)
 """
 
 from abc import ABC, abstractmethod
+from collections.abc import AsyncIterator, Iterator
 from dataclasses import dataclass, field
 from datetime import datetime
 from enum import Enum
 from pathlib import Path
-from collections.abc import AsyncIterator, Iterator
 from typing import Any
-
-
 class DocumentType(Enum):
     """Supported document types."""
     PDF = 'pdf'

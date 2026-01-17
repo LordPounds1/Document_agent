@@ -5,17 +5,16 @@
 Пароли хранятся в виде хэшей (bcrypt/hashlib).
 """
 
+from pathlib import Path
 import hashlib
 import hmac
 import logging
 import os
 import secrets
 import time
-from pathlib import Path
 # Типы не используются, удалены
 
 import streamlit as st
-
 logger = logging.getLogger(__name__)
 
 # Файл с пользователями (создаётся при первом запуске)
@@ -59,7 +58,7 @@ def _verify_password(password: str, stored_hash: str, salt: str) -> bool:
     Returns:
         True если пароль верный
     """
-    computed_hash, _ = _hash_password(password, salt)
+    computed_hash, _ = _hash_password(password.encode('utf-8'), salt)
     return hmac.compare_digest(computed_hash, stored_hash)
 
 
@@ -90,10 +89,9 @@ def _save_user(username: str, password: str):
         f.write(f"{username}:{password_hash}:{salt}\n")
 
     # Защищаем файл (только для владельца)
-    try:
-        os.chmod(USERS_FILE, 0o600)
-    except Exception:
-        pass  # Windows может не поддерживать chmod
+    import contextlib
+    with contextlib.suppress(Exception):
+        os.chmod(USERS_FILE, 0o600)  # Windows может не поддерживать chmod
 
 
 def create_admin_user(username: str = "admin", password: str | None = None) -> str:

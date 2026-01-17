@@ -1,9 +1,6 @@
 """Tests for agents/email_agent.py."""
 
-import pytest
-from unittest.mock import Mock, patch, MagicMock
-
-
+from unittest.mock import MagicMock, Mock, patch
 class TestEmailAgent:
     """Тесты для класса EmailAgent."""
 
@@ -95,7 +92,6 @@ class TestEmailAgent:
     def test_connect_success(self, mock_imap):
         """Проверка успешного подключения."""
         from agents.email_agent import EmailAgent
-
         # Настройка мока
         mock_instance = MagicMock()
         mock_imap.return_value = mock_instance
@@ -111,7 +107,6 @@ class TestEmailAgent:
     def test_connect_failure(self, mock_imap):
         """Проверка неудачного подключения."""
         from agents.email_agent import EmailAgent
-
         # Настройка мока для ошибки
         mock_imap.side_effect = Exception("Connection failed")
 

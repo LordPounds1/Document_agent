@@ -5,15 +5,15 @@ Uses subprocess to avoid asyncio issues on Windows.
 The actual monitoring runs in monitor_worker.py.
 """
 
-import json
-import logging
-import subprocess
-import sys
 from collections.abc import Callable
 from dataclasses import dataclass, field
 from datetime import datetime
 from pathlib import Path
-
+import contextlib
+import json
+import logging
+import subprocess
+import sys
 logger = logging.getLogger(__name__)
 
 RESULTS_FILE = Path("whatsapp_monitor_results.json")
@@ -57,7 +57,7 @@ class WhatsAppMonitor:
         self._processed_files: set[str] = set()
         self._last_doc_count = 0
 
-        self.stats = {
+        self.stats: dict[str, int | datetime | None] = {
             'documents_found': 0,
             'documents_processed': 0,
             'errors': 0,
@@ -77,7 +77,8 @@ class WhatsAppMonitor:
             return False
         try:
             data = json.loads(RESULTS_FILE.read_text(encoding='utf-8'))
-            return data.get('status') == 'monitoring'
+            status = data.get('status')
+            return isinstance(status, str) and status == 'monitoring'
         except Exception:
             return False
 
@@ -95,8 +96,8 @@ class WhatsAppMonitor:
                 for doc in data.get('documents', []):
                     if doc.get('file_path'):
                         self._processed_files.add(doc['file_path'])
-            except Exception:
-                pass
+            except Exception as e:
+                logger.debug(f'Failed to load processed files from previous session: {e}')
 
         # Start subprocess
         cmd = [
@@ -112,7 +113,8 @@ class WhatsAppMonitor:
         logger.info(f"Starting monitor subprocess: {' '.join(cmd)}")
 
         try:
-            self._process = subprocess.Popen(
+            # Безопасно: cmd формируется из sys.executable и фиксированных аргументов
+            self._process = subprocess.Popen(  # noqa: S603
                 cmd,
                 stdout=subprocess.PIPE,
                 stderr=subprocess.STDOUT,
@@ -133,10 +135,8 @@ class WhatsAppMonitor:
                 self._process.terminate()
                 self._process.wait(timeout=5)
             except Exception:
-                try:
+                with contextlib.suppress(Exception):
                     self._process.kill()
-                except Exception:
-                    pass
             self._process = None
             logger.info("Monitor subprocess stopped")
 
@@ -157,10 +157,8 @@ class WhatsAppMonitor:
             worker_stats = data.get('stats', {})
             self.stats['checks_count'] = worker_stats.get('checks', 0)
             if worker_stats.get('last_check'):
-                try:
+                with contextlib.suppress(Exception):
                     self.stats['last_check'] = datetime.fromisoformat(worker_stats['last_check'])
-                except Exception:
-                    pass
             self.stats['errors'] = worker_stats.get('errors', 0)
 
             # Find new documents
@@ -188,7 +186,8 @@ class WhatsAppMonitor:
 
         try:
             data = json.loads(RESULTS_FILE.read_text(encoding='utf-8'))
-            return data.get('status', 'unknown')
+            status = data.get('status', 'unknown')
+            return str(status) if status else 'unknown'
         except Exception:
             return "unknown"
 
@@ -203,8 +202,8 @@ class WhatsAppMonitor:
                     if not line:
                         break
                     lines.append(line.strip())
-            except Exception:
-                pass
+            except Exception as e:
+                logger.debug(f'Failed to load processed files from previous session: {e}')
         return lines
 
 

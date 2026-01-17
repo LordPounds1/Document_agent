@@ -4,12 +4,11 @@ Placeholder для будущей реализации фонового мони
 WhatsApp мониторинг сложнее из-за необходимости браузера.
 """
 
-import logging
 from datetime import datetime
 from typing import Any
+import logging
 
 from celery import shared_task
-
 logger = logging.getLogger(__name__)
 
 

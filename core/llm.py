@@ -1,11 +1,10 @@
 """Simplified LLM Client - обёртка над llama-cpp-python."""
 
+from threading import Semaphore
+from typing import Any
 import json
 import logging
 import re
-from threading import Semaphore
-from typing import Any
-
 logger = logging.getLogger(__name__)
 
 
@@ -23,7 +22,7 @@ class LLMClient:
             n_gpu_layers: Количество слоёв на GPU (-1 = все)
         """
         self.model_path = model_path
-        self.llm = None
+        self.llm: Any = None  # type: ignore[assignment]
         self.n_ctx = n_ctx
         self.n_gpu_layers = n_gpu_layers
         self._inference_count = 0
@@ -33,7 +32,6 @@ class LLMClient:
         """Инициализация модели"""
         try:
             from llama_cpp import Llama
-
             logger.info(f"Loading model: {self.model_path}")
             logger.info(f"GPU layers: {n_gpu_layers}, context: {n_ctx}")
 
@@ -123,7 +121,7 @@ class LLMClient:
         self.close()
 
     def generate_json(self, prompt: str, schema: dict[str, str],
-                     max_tokens: int = 512) -> dict[str, Any]:
+                     max_tokens: int = 512) -> dict[str, Any]:  # type: ignore[return]
         """Генерация JSON с валидацией схемы
 
         Args:

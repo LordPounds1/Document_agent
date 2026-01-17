@@ -2,14 +2,13 @@
 Тесты для модуля безопасности.
 """
 
-import pytest
 from utils.security import (
+    RateLimiter,
+    mask_sensitive_data,
+    sanitize_filename,
+    sanitize_html,
     validate_email,
     validate_password,
-    sanitize_html,
-    sanitize_filename,
-    mask_sensitive_data,
-    RateLimiter,
 )
 
 

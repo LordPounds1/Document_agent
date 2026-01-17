@@ -1,14 +1,13 @@
 """Упрощённый процессор документов с LLM."""
 
-import logging
-import re
 from datetime import datetime
 from typing import Any
+import logging
+import re
 
 from config import Config
 from core.llm import LLMClient
 from core.rag import SimpleRAG
-
 logger = logging.getLogger(__name__)
 
 
@@ -16,7 +15,7 @@ class DocumentProcessor:
     """Процессор документов для извлечения информации из договоров"""
 
     def __init__(self, model_path: str, templates_dir: str = "templates",
-                 enable_learning: bool = None):
+                 enable_learning: bool | None = None):
         """
         Args:
             model_path: Путь к GGUF модели

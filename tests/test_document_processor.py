@@ -1,9 +1,4 @@
 """Tests for processors/document.py."""
-
-import pytest
-from unittest.mock import Mock, patch
-
-
 class TestDocumentProcessor:
     """Тесты для класса DocumentProcessor."""
 

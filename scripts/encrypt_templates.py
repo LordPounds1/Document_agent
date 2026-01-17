@@ -16,11 +16,10 @@
 Ключ хранится в переменной окружения TEMPLATES_KEY или файле .templates_key
 """
 
+from pathlib import Path
 import argparse
 import os
 import sys
-from pathlib import Path
-
 # Добавляем корень проекта в путь
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
@@ -53,8 +52,8 @@ def generate_key():
     key_file.write_bytes(key)
 
     print(f"✅ Ключ сохранён в {key_file}")
-    print(f"⚠️  Добавьте .templates_key в .gitignore!")
-    print(f"\n📋 Для продакшена используйте переменную окружения:")
+    print("⚠️  Добавьте .templates_key в .gitignore!")
+    print("\n📋 Для продакшена используйте переменную окружения:")
     print(f"   TEMPLATES_KEY={key.decode()}")
 
     return key
@@ -90,7 +89,7 @@ def encrypt_templates():
 
     print(f"\n✅ Зашифровано файлов: {count}")
     print(f"📁 Зашифрованные файлы в: {encrypted_dir}")
-    print(f"\n⚠️  Теперь можно удалить оригиналы из templates/ и закоммитить templates_encrypted/")
+    print("\n⚠️  Теперь можно удалить оригиналы из templates/ и закоммитить templates_encrypted/")
 
 
 def decrypt_templates():

@@ -2,13 +2,8 @@
 Тесты для модуля аутентификации.
 """
 
-import os
-import pytest
-import tempfile
-from pathlib import Path
-
-# Мокаем streamlit
 import sys
+
 from unittest.mock import MagicMock
 
 # Mock streamlit before importing auth
@@ -23,7 +18,6 @@ from utils.auth import (
     _save_user,
     authenticate,
     check_first_run,
-    USERS_FILE,
 )
 
 

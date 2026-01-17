@@ -9,13 +9,10 @@
     pytest tests/test_whatsapp_playwright.py -v
 """
 
-import pytest
 from datetime import datetime
 from pathlib import Path
-from unittest.mock import Mock, AsyncMock, patch, MagicMock
-import asyncio
 
-
+from unittest.mock import AsyncMock, Mock
 # ============ Tests for sources/base.py ============
 
 class TestDocumentType:
@@ -52,7 +49,6 @@ class TestDocument:
 
     def test_document_creation(self):
         from sources.base import Document, DocumentType
-
         doc = Document(
             id='test_123',
             source_type='whatsapp',
@@ -70,7 +66,6 @@ class TestDocument:
 
     def test_document_with_text(self):
         from sources.base import Document
-
         doc = Document(
             id='test_456',
             source_type='email',
@@ -87,7 +82,6 @@ class TestDocument:
 
     def test_document_metadata(self):
         from sources.base import Document
-
         doc = Document(
             id='test_789',
             source_type='whatsapp',
@@ -110,7 +104,6 @@ class TestEmailSource:
 
     def test_email_source_properties(self):
         from sources.email_source import EmailSource
-
         source = EmailSource(
             email='test@gmail.com',
             password='password123'
@@ -121,7 +114,6 @@ class TestEmailSource:
 
     def test_email_source_connect_disconnect(self):
         from sources.email_source import EmailSource
-
         source = EmailSource(
             email='test@gmail.com',
             password='password123'
@@ -148,7 +140,6 @@ class TestWhatsAppClient:
 
     def test_client_initialization(self):
         from whatsapp.client import WhatsAppClient
-
         client = WhatsAppClient(
             session_dir='.test_session',
             downloads_dir='.test_downloads',
@@ -163,7 +154,6 @@ class TestWhatsAppClient:
 
     def test_client_selectors_defined(self):
         from whatsapp.client import WhatsAppClient
-
         # Verify all required selectors are defined
         required = ['qr_canvas', 'chat_list', 'side_panel', 'search_box']
         for selector in required:
@@ -177,7 +167,6 @@ class TestChatInfo:
 
     def test_chat_info_creation(self):
         from whatsapp.chat_iterator import ChatInfo
-
         chat = ChatInfo(
             name='Business Partner',
             last_message='Договор готов',
@@ -195,7 +184,6 @@ class TestChatIterator:
 
     def test_iterator_selectors_defined(self):
         from whatsapp.chat_iterator import ChatIterator
-
         required = ['chat_list', 'chat_item', 'chat_title', 'search_box']
         for selector in required:
             assert selector in ChatIterator.SELECTORS
@@ -203,7 +191,6 @@ class TestChatIterator:
     @pytest.mark.asyncio
     async def test_open_chat_empty_name(self):
         from whatsapp.chat_iterator import ChatIterator
-
         mock_page = AsyncMock()
         iterator = ChatIterator(mock_page)
 
@@ -221,7 +208,6 @@ class TestMessageInfo:
 
     def test_message_info_creation(self):
         from whatsapp.message_scanner import MessageInfo
-
         msg = MessageInfo(
             id='msg_001',
             sender='Partner Inc',
@@ -243,7 +229,6 @@ class TestMessageScanner:
 
     def test_contract_keywords_defined(self):
         from whatsapp.message_scanner import MessageScanner
-
         keywords = MessageScanner.CONTRACT_KEYWORDS
         assert 'договор' in keywords
         assert 'контракт' in keywords
@@ -252,7 +237,6 @@ class TestMessageScanner:
 
     def test_is_contract_detection(self):
         from whatsapp.message_scanner import MessageScanner
-
         mock_page = Mock()
         scanner = MessageScanner(mock_page)
 
@@ -272,7 +256,6 @@ class TestMessageScanner:
 
     def test_generate_id(self):
         from whatsapp.message_scanner import MessageScanner
-
         mock_page = Mock()
         scanner = MessageScanner(mock_page)
 
@@ -293,7 +276,6 @@ class TestDocumentDownloader:
 
     def test_sanitize_filename(self):
         from whatsapp.downloader import DocumentDownloader
-
         mock_page = Mock()
         downloader = DocumentDownloader(mock_page, downloads_dir='.test_downloads')
 
@@ -321,7 +303,6 @@ class TestWhatsAppPipeline:
 
     def test_pipeline_initialization(self):
         from whatsapp.adapter import WhatsAppPipeline
-
         pipeline = WhatsAppPipeline(
             session_dir='.test_session',
             downloads_dir='.test_downloads',
@@ -334,7 +315,6 @@ class TestWhatsAppPipeline:
 
     def test_extract_text_txt(self, tmp_path):
         from whatsapp.adapter import WhatsAppPipeline
-
         pipeline = WhatsAppPipeline()
 
         # Create test file
@@ -350,13 +330,11 @@ class TestWhatsAppSource:
 
     def test_source_type(self):
         from sources.whatsapp_source import WhatsAppSource
-
         source = WhatsAppSource()
         assert source.source_type == 'whatsapp'
 
     def test_is_connected_default(self):
         from sources.whatsapp_source import WhatsAppSource
-
         source = WhatsAppSource()
         assert source.is_connected is False
 
@@ -368,20 +346,18 @@ class TestIntegration:
 
     def test_imports_work(self):
         """Проверка что все импорты работают."""
-        from sources import InputSource, Document, DocumentType
         from sources import EmailSource, WhatsAppSource
-        from whatsapp import WhatsAppClient, ChatIterator
+        from sources import InputSource, Document, DocumentType
         from whatsapp import MessageScanner, DocumentDownloader
+        from whatsapp import WhatsAppClient, ChatIterator
         from whatsapp import WhatsAppPipeline
-
         # All imports successful
         assert True
 
     def test_document_processor_integration(self):
         """Проверка интеграции с существующим DocumentProcessor."""
-        from sources.base import Document, DocumentType
         from processors.document import DocumentProcessor
-
+        from sources.base import Document, DocumentType
         # Create a mock document from WhatsApp
         doc = Document(
             id='wa_test_001',
@@ -417,7 +393,6 @@ class TestIntegration:
         from sources.base import InputSource, SyncInputSource
         from sources.email_source import EmailSource
         from sources.whatsapp_source import WhatsAppSource
-
         # Both implement the same interface pattern
         email = EmailSource('test@test.com', 'pass')
         whatsapp = WhatsAppSource()
@@ -441,7 +416,6 @@ def test_smoke():
     """Быстрый smoke test - проверка что модули загружаются."""
     import sources
     import whatsapp
-
     # Check modules have expected exports
     assert hasattr(sources, 'InputSource')
     assert hasattr(sources, 'Document')

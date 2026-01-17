@@ -11,9 +11,9 @@
 """
 
 import os
+
 from celery import Celery
 from celery.schedules import crontab
-
 # Redis URL из переменных окружения
 REDIS_URL = os.getenv('REDIS_URL', 'redis://localhost:6379/0')
 

@@ -3,12 +3,11 @@
 Downloads documents (PDF, DOCX) from WhatsApp messages.
 """
 
+from pathlib import Path
 import asyncio
 import logging
-from pathlib import Path
 
 from whatsapp.message_scanner import MessageInfo
-
 logger = logging.getLogger(__name__)
 
 try:
@@ -16,7 +15,7 @@ try:
     PLAYWRIGHT_AVAILABLE = True
 except ImportError:
     PLAYWRIGHT_AVAILABLE = False
-    Page = None
+    Page = None  # type: ignore[assignment]
 
 
 class DocumentDownloader:
@@ -66,7 +65,7 @@ class DocumentDownloader:
         # Create directory
         self.downloads_dir.mkdir(parents=True, exist_ok=True)
 
-    async def download(self, message: MessageInfo) -> str | None:
+    async def download(self, message: MessageInfo) -> str | None:  # type: ignore[return]
         """Download document from message.
 
         Args:
@@ -206,12 +205,11 @@ class DocumentDownloader:
                 await asyncio.sleep(0.3)
         except Exception:
             # Try pressing Escape as fallback
-            try:
+            import contextlib
+            with contextlib.suppress(Exception):
                 await self.page.keyboard.press('Escape')
-            except Exception:
-                pass
 
-    async def _find_and_click_document(self, doc_name: str) -> bool:
+    async def _find_and_click_document(self, doc_name: str) -> bool:  # type: ignore[return]
         """Find document by name and click on it.
 
         Args:
@@ -302,9 +300,9 @@ class DocumentDownloader:
                 logger.info(f'Downloaded via click: {filename}')
                 return str(save_path)
 
-            except Exception:
+            except Exception as e:
                 # Download didn't start from click - might need to find download button
-                pass
+                logger.debug(f'Download via click failed: {e}')
 
             # Look for download icon near the document
             download_btn = self.page.locator('#main [data-testid*="download"]')

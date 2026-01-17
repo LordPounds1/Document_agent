@@ -1,11 +1,4 @@
 """Tests for config.py."""
-
-import os
-from pathlib import Path
-
-import pytest
-
-
 class TestConfig:
     """Тесты для класса Config."""
 

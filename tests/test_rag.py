@@ -1,8 +1,4 @@
 """Tests for core/rag.py."""
-
-import pytest
-
-
 class TestDocument:
     """Тесты для класса Document."""
 

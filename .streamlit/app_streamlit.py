@@ -11,18 +11,17 @@
 5. Мониторинг новых писем
 """
 
+from datetime import datetime
+from pathlib import Path
 import importlib.util
 import io
 import logging
 import sys
 import threading
 import time
-from datetime import datetime
-from pathlib import Path
 
 import pandas as pd
 import streamlit as st
-
 # Добавляем родительскую директорию в путь для импортов
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
@@ -102,7 +101,6 @@ from agents.email_agent import EmailAgent  # noqa: E402
 from agents.whatsapp_agent import WhatsAppAgent  # noqa: E402
 from core.rag import SimpleRAG  # noqa: E402
 from processors.document import DocumentProcessor  # noqa: E402
-
 # Импорт WhatsApp Playwright модуля
 if importlib.util.find_spec('playwright') is not None:
     from whatsapp.monitor import (  # noqa: E402
@@ -1096,7 +1094,6 @@ def main():
                     else:
                         try:
                             from tasks.email_tasks import start_email_monitoring
-
                             # Запускаем задачу через Celery
                             start_email_monitoring.delay(
                                 email_address=monitor_email,

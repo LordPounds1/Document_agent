@@ -8,12 +8,11 @@ Retry-декораторы и утилиты для устойчивой раб�
 - Таймауты
 """
 
+from collections.abc import Callable
 import functools
 import logging
 import random
 import time
-from collections.abc import Callable
-
 logger = logging.getLogger(__name__)
 
 
@@ -139,13 +138,10 @@ class CircuitBreaker:
     @property
     def state(self) -> str:
         """Текущее состояние circuit breaker."""
-        if self._state == self.OPEN:
-            # Проверяем, не пора ли перейти в HALF_OPEN
-            if self._last_failure_time:
-                elapsed = time.time() - self._last_failure_time
-                if elapsed >= self.recovery_timeout:
-                    self._state = self.HALF_OPEN
-                    logger.info("[CircuitBreaker] Transitioning to HALF_OPEN")
+        if (self._state == self.OPEN and self._last_failure_time and
+                (time.time() - self._last_failure_time) >= self.recovery_timeout):
+            self._state = self.HALF_OPEN
+            logger.info("[CircuitBreaker] Transitioning to HALF_OPEN")
         return self._state
 
     def _record_success(self):
@@ -186,7 +182,7 @@ class CircuitBreaker:
                 result = func(*args, **kwargs)
                 self._record_success()
                 return result
-            except self.expected_exceptions as e:
+            except self.expected_exceptions:
                 self._record_failure()
                 raise
 
@@ -210,17 +206,15 @@ def with_timeout(seconds: float):
         seconds: Таймаут в секундах
     """
     import platform
-
     if platform.system() == "Windows":
         # Windows: возвращаем функцию без изменений
         # Таймауты нужно обрабатывать внутри функций
-        def decorator(func):
+        def windows_decorator(func):
             return func
-        return decorator
+        return windows_decorator
 
     import signal
-
-    def decorator(func: Callable) -> Callable:
+    def unix_decorator(func: Callable) -> Callable:
         def handler(signum, frame):
             raise TimeoutError(f"{func.__name__} timed out after {seconds}s")
 
@@ -235,7 +229,7 @@ def with_timeout(seconds: float):
                 signal.signal(signal.SIGALRM, old_handler)
 
         return wrapper
-    return decorator
+    return unix_decorator
 
 
 # Готовые circuit breakers для разных сервисов

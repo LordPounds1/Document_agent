@@ -1,12 +1,13 @@
 """Упрощённый агент для работы с почтой."""
 
+from datetime import datetime
+from email.header import decode_header
+import contextlib
 import email
 import imaplib
 import io
 import logging
 import socket
-from datetime import datetime
-from email.header import decode_header
 # Security: никогда не логируем пароли
 logger = logging.getLogger(__name__)
 
@@ -116,7 +117,7 @@ class EmailAgent:
                     metrics.increment("email_connections_total", labels={"status": "auth_error"})
                 return False
 
-            except (socket.timeout, socket.error, ConnectionError, OSError) as e:
+            except (TimeoutError, ConnectionError, OSError) as e:
                 # Сетевые ошибки - повторяем
                 safe_error = _safe_error_message(e)
                 logger.warning(f"⚠️ Сетевая ошибка (попытка {attempt}): {safe_error}")
@@ -147,10 +148,8 @@ class EmailAgent:
     def disconnect(self):
         """Отключение от сервера"""
         if self.connected and self.imap:
-            try:
+            with contextlib.suppress(Exception):
                 self.imap.logout()
-            except Exception:
-                pass
             self.connected = False
             logger.info("Отключено от почтового сервера")
 
@@ -348,12 +347,10 @@ class EmailAgent:
     def mark_as_read(self, email_id: str):
         """Пометить письмо как прочитанное"""
         if self.connected:
-            try:
+            with contextlib.suppress(Exception):
                 self.imap.store(email_id.encode(), '+FLAGS', '\\Seen')
-            except Exception:
-                pass
 
-    def get_attachment_text(self, attachment: dict) -> str:
+    def get_attachment_text(self, attachment: dict) -> str:  # type: ignore[return]
         """Извлечение текста из вложения"""
         filename = attachment.get('filename', '').lower()
         content = attachment.get('content', b'')

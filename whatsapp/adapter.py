@@ -3,19 +3,17 @@
 Integrates WhatsApp document extraction with the existing document processor.
 """
 
-import asyncio
-import logging
+from collections.abc import AsyncIterator, Callable
 from datetime import datetime
 from pathlib import Path
-from collections.abc import AsyncIterator, Callable
-from typing import Any
+import asyncio
+import logging
 
 from sources.base import Document, DocumentType, InputSource
-from whatsapp.client import WhatsAppClient
 from whatsapp.chat_iterator import ChatIterator
-from whatsapp.message_scanner import MessageScanner, MessageInfo
+from whatsapp.client import WhatsAppClient
 from whatsapp.downloader import DocumentDownloader
-
+from whatsapp.message_scanner import MessageScanner, MessageInfo
 logger = logging.getLogger(__name__)
 
 
@@ -64,9 +62,9 @@ class WhatsAppPipeline:
         self._downloader: DocumentDownloader | None = None
 
         # Callbacks
-        self.on_chat_processed: Callable[[str, int | None, None]] = None
-        self.on_document_found: Callable[[MessageInfo | None, None]] = None
-        self.on_document_downloaded: Callable[[str | None, None]] = None
+        self.on_chat_processed: Callable[[str, int | None], None] | None = None
+        self.on_document_found: Callable[[MessageInfo], None] | None = None
+        self.on_document_downloaded: Callable[[str], None] | None = None
 
     @property
     def is_connected(self) -> bool:
@@ -97,6 +95,9 @@ class WhatsAppPipeline:
 
         # Initialize components
         page = self._client.page
+        if page is None:
+            logger.error("Page is None after connection")
+            return False
         self._iterator = ChatIterator(page)
         self._scanner = MessageScanner(page)
         self._downloader = DocumentDownloader(page, self.downloads_dir)
@@ -151,6 +152,9 @@ class WhatsAppPipeline:
 
                 # Verify chat is actually open
                 page = self._client.page
+                if page is None:
+                    logger.warning(f'Page is None for chat: {chat.name}')
+                    continue
                 has_main = await page.evaluate('() => !!document.querySelector("#main")')
                 if not has_main:
                     logger.warning(f'Chat {chat.name} did not open (no #main)')
@@ -215,7 +219,7 @@ class WhatsAppPipeline:
                 logger.error(f'Error processing chat {chat.name}: {e}')
                 continue
 
-    def _extract_text(self, file_path: str) -> str:
+    def _extract_text(self, file_path: str) -> str:  # type: ignore[return]
         """Extract text from downloaded document.
 
         Args:
@@ -327,7 +331,7 @@ class WhatsAppSource(InputSource):
         """Disconnect from WhatsApp."""
         await self._pipeline.disconnect()
 
-    async def fetch_documents(
+    async def fetch_documents(  # type: ignore[override]
         self,
         limit: int = 100,
         since: datetime | None = None,

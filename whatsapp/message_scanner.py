@@ -3,13 +3,12 @@
 Scans chat messages to find documents (PDF, DOCX, etc.).
 """
 
-import asyncio
-import hashlib
-import logging
 from dataclasses import dataclass, field
 from datetime import datetime
 from typing import Any
-
+import asyncio
+import hashlib
+import logging
 logger = logging.getLogger(__name__)
 
 try:
@@ -17,8 +16,8 @@ try:
     PLAYWRIGHT_AVAILABLE = True
 except ImportError:
     PLAYWRIGHT_AVAILABLE = False
-    Page = None
-    ElementHandle = None
+    Page = None  # type: ignore[assignment]
+    ElementHandle = None  # type: ignore[assignment]
 
 
 @dataclass
@@ -164,7 +163,8 @@ class MessageScanner:
                     if message_list:
                         logger.debug(f'Found message list with: {selector}')
                         break
-                except Exception:
+                except Exception as e:
+                    logger.debug(f'Failed to find message list with selector: {e}')
                     continue
 
             if not message_list:
@@ -490,8 +490,8 @@ class MessageScanner:
                 except ValueError:
                     continue
 
-        except Exception:
-            pass
+        except Exception as e:
+            logger.debug(f'Failed to scan messages: {e}')
 
         return now
 

@@ -5,21 +5,20 @@
 Включает систему непрерывного обучения на новых договорах.
 """
 
-import hashlib
-import json
-import logging
-import re
 from dataclasses import dataclass, field
 from datetime import datetime
 from pathlib import Path
 from typing import Any
-
+import hashlib
+import json
+import logging
+import re
 logger = logging.getLogger(__name__)
 
 # Опциональные зависимости для векторного поиска
 try:
-    import chromadb
     from chromadb.config import Settings
+    import chromadb
     CHROMADB_AVAILABLE = True
 except ImportError:
     CHROMADB_AVAILABLE = False
@@ -119,9 +118,9 @@ class SimpleRAG:
 
         # Инициализация векторного поиска
         self.use_vector_search = CHROMADB_AVAILABLE and EMBEDDINGS_AVAILABLE
-        self.embedder = None
-        self.chroma_client = None
-        self.collection = None
+        self.embedder: Any = None  # type: ignore[assignment]
+        self.chroma_client: Any = None  # type: ignore[assignment]
+        self.collection: Any = None  # type: ignore[assignment]
 
         if self.use_vector_search:
             self._init_vector_store(use_gpu)
@@ -152,7 +151,8 @@ class SimpleRAG:
                 name="legal_documents",
                 metadata={"hnsw:space": "cosine"}
             )
-            logger.info(f"ChromaDB initialized: {self.collection.count()} documents")
+            if self.collection:
+                logger.info(f"ChromaDB initialized: {self.collection.count()} documents")
 
         except Exception as e:
             logger.error(f"Failed to init vector store: {e}")
@@ -203,6 +203,10 @@ class SimpleRAG:
             metadatas = [doc.metadata for doc in documents]
 
             # Генерация эмбеддингов
+            if not self.embedder or not self.collection:
+                logger.warning("Vector search not available, skipping indexing")
+                return
+
             embeddings = self.embedder.encode(texts, show_progress_bar=False)
 
             # Добавление в коллекцию
@@ -217,7 +221,7 @@ class SimpleRAG:
         except Exception as e:
             logger.error(f"Failed to index documents: {e}")
 
-    def _read_docx(self, file_path: Path) -> str:
+    def _read_docx(self, file_path: Path) -> str:  # type: ignore[return]
         """Чтение DOCX файла"""
         try:
             import docx2txt
@@ -238,7 +242,7 @@ class SimpleRAG:
             return
 
         try:
-            with open(self.learning_history_file, 'r', encoding='utf-8') as f:
+            with open(self.learning_history_file, encoding='utf-8') as f:
                 data = json.load(f)
 
             for record in data.get('records', []):
@@ -308,7 +312,7 @@ class SimpleRAG:
         content: str,
         document_type: str = "unknown",
         source: str = "manual",
-        parties: list[str | None] = None,
+        parties: list[str] | None = None,
         force: bool = False
     ) -> dict[str, Any]:
         """Обучение системы на новом документе.
@@ -383,12 +387,16 @@ class SimpleRAG:
             self._index_documents([doc])
 
         # Сохраняем в историю обучения
+        added_at = metadata.get('added_at', '')
+        if not isinstance(added_at, str):
+            added_at = str(added_at)
+        clean_parties = [p for p in (parties or []) if p is not None]
         record = LearningRecord(
             document_hash=doc_hash,
             document_type=document_type,
-            added_at=metadata['added_at'],
+            added_at=added_at,
             source=source,
-            parties=parties or [],
+            parties=clean_parties,
             keywords=keywords
         )
         self.learning_history.append(record)
@@ -455,7 +463,8 @@ class SimpleRAG:
         # Удаляем из ChromaDB
         if self.use_vector_search and self.collection:
             try:
-                doc_id = f"doc_{hash(document_hash)}"
+                # Безопасно: hash() используется для создания ID, не SQL injection
+                doc_id = f"doc_{hash(document_hash)}"  # noqa: S608
                 self.collection.delete(ids=[doc_id])
             except Exception as e:
                 logger.error(f"Failed to delete from ChromaDB: {e}")
@@ -534,6 +543,10 @@ class SimpleRAG:
             Список релевантных документов
         """
         try:
+            if not self.embedder or not self.collection:
+                logger.warning("Vector search not available, falling back to keyword search")
+                return self._keyword_search(query, limit)
+
             # Pre-Retrieval: расширяем запрос
             expanded_query = self.expand_query(query)
 
@@ -541,9 +554,10 @@ class SimpleRAG:
             query_embedding = self.embedder.encode([expanded_query])[0]
 
             # Поиск в ChromaDB
+            collection_count = self.collection.count() if self.collection else 0
             results = self.collection.query(
                 query_embeddings=[query_embedding.tolist()],
-                n_results=min(k, self.collection.count()),
+                n_results=min(k, collection_count),
                 include=["documents", "metadatas", "distances"]
             )
 
@@ -617,10 +631,10 @@ class SimpleRAG:
         reranked = []
         for doc in documents:
             content_lower = doc.content.lower()
-            score = doc.score
+            score = float(doc.score) if hasattr(doc, 'score') else 0.0
 
             # Бонус за юридические ключевые слова
-            legal_bonus = 0
+            legal_bonus = 0.0
             for keyword in self.CONTRACT_KEYWORDS:
                 if keyword in content_lower:
                     legal_bonus += 0.1

@@ -3,12 +3,10 @@
 Re-exports WhatsAppSource from the whatsapp module for unified interface.
 """
 
-from datetime import datetime
 from collections.abc import AsyncIterator
+from datetime import datetime
 
 from sources.base import Document, InputSource
-
-
 class WhatsAppSource(InputSource):
     """WhatsApp input source using Playwright browser automation.
 
@@ -42,7 +40,6 @@ class WhatsAppSource(InputSource):
         """
         # Lazy import to avoid circular dependency
         from whatsapp.adapter import WhatsAppPipeline
-
         self._pipeline = WhatsAppPipeline(
             session_dir=session_dir,
             downloads_dir=downloads_dir,
@@ -78,7 +75,7 @@ class WhatsAppSource(InputSource):
         """Disconnect from WhatsApp and close browser."""
         await self._pipeline.disconnect()
 
-    async def fetch_documents(
+    async def fetch_documents(  # type: ignore[override]
         self,
         limit: int = 100,
         since: datetime | None = None,

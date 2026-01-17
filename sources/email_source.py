@@ -3,13 +3,12 @@
 Wraps the existing EmailAgent to conform to the InputSource interface.
 """
 
-import logging
-from datetime import datetime
 from collections.abc import Iterator
+from datetime import datetime
+import logging
 
 from agents.email_agent import EmailAgent
 from sources.base import Document, DocumentType, SyncInputSource
-
 logger = logging.getLogger(__name__)
 
 

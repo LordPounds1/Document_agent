@@ -15,7 +15,6 @@ import logging
 import os
 import re
 import time
-
 logger = logging.getLogger(__name__)
 
 
@@ -50,10 +49,7 @@ def validate_email(email: str) -> bool:
 
     # Запрещаем подозрительные символы
     dangerous_chars = ['<', '>', '"', "'", ';', '\\', '|', '`', '$']
-    if any(char in email for char in dangerous_chars):
-        return False
-
-    return True
+    return not any(char in email for char in dangerous_chars)
 
 
 def validate_password(password: str) -> bool:
@@ -69,10 +65,7 @@ def validate_password(password: str) -> bool:
         return False
 
     # App passwords обычно 16 символов, обычные пароли 6+
-    if len(password) < 6 or len(password) > 256:
-        return False
-
-    return True
+    return not (len(password) < 6 or len(password) > 256)
 
 
 # ============ SANITIZATION ============
@@ -271,7 +264,7 @@ def setup_secure_logging(log_file: str | None = None, level: int = logging.INFO)
     console_handler = logging.StreamHandler()
     console_handler.setFormatter(formatter)
 
-    handlers = [console_handler]
+    handlers: list[logging.Handler] = [console_handler]
 
     # File handler
     if log_file:

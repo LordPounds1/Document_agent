@@ -6,15 +6,14 @@
 - Истории проверок
 """
 
-import logging
-import os
-import sqlite3
 from contextlib import contextmanager
 from dataclasses import dataclass
 from datetime import datetime, timedelta
 from pathlib import Path
 from typing import Any
-
+import logging
+import os
+import sqlite3
 logger = logging.getLogger(__name__)
 
 # Путь к базе данных
@@ -51,14 +50,14 @@ class ProcessedDocument:
     email_address: str
     email_from: str
     email_subject: str
-    email_date: datetime
+    email_date: datetime | None
     document_type: str
     summary: str
     parties: str
     amount: str
     responsible: str
     source: str
-    processed_at: datetime
+    processed_at: datetime | None
     id: int | None = None
 
     def to_dict(self) -> dict[str, Any]:
@@ -82,7 +81,7 @@ class ProcessedDocument:
 class MonitorStorage:
     """Хранилище для фонового мониторинга."""
 
-    def __init__(self, db_path: str = None):
+    def __init__(self, db_path: str | None = None):
         self.db_path = db_path or DB_PATH
         self._ensure_db_dir()
         self._init_db()
@@ -163,7 +162,6 @@ class MonitorStorage:
     def save_config(self, config: MonitorConfig) -> bool:
         """Сохранение конфигурации мониторинга."""
         from utils.security import encrypt_password
-
         with self._get_connection() as conn:
             cursor = conn.cursor()
 
@@ -191,7 +189,6 @@ class MonitorStorage:
     def get_config(self, email_address: str) -> MonitorConfig | None:
         """Получение конфигурации по email."""
         from utils.security import decrypt_password
-
         with self._get_connection() as conn:
             cursor = conn.cursor()
             cursor.execute(
@@ -216,7 +213,6 @@ class MonitorStorage:
     def get_all_active_configs(self) -> list[MonitorConfig]:
         """Получение всех активных конфигураций."""
         from utils.security import decrypt_password
-
         with self._get_connection() as conn:
             cursor = conn.cursor()
             cursor.execute(
@@ -261,7 +257,7 @@ class MonitorStorage:
                 (email_address,)
             )
             logger.info(f"Deleted config for: {email_address}")
-            return cursor.rowcount > 0
+            return bool(cursor.rowcount and cursor.rowcount > 0)
 
     def update_last_check(self, email_address: str) -> bool:
         """Обновление времени последней проверки."""
@@ -271,7 +267,7 @@ class MonitorStorage:
                 'UPDATE monitor_configs SET last_check = ? WHERE email_address = ?',
                 (datetime.now().isoformat(), email_address)
             )
-            return cursor.rowcount > 0
+            return bool(cursor.rowcount and cursor.rowcount > 0)
 
     # ==========================================
     # Методы для документов
@@ -306,7 +302,7 @@ class MonitorStorage:
 
     def get_documents(
         self,
-        email_address: str = None,
+        email_address: str | None = None,
         limit: int = 100,
         offset: int = 0
     ) -> list[ProcessedDocument]:
@@ -385,9 +381,9 @@ class MonitorStorage:
                 'DELETE FROM processed_documents WHERE processed_at < ?',
                 (cutoff,)
             )
-            deleted = cursor.rowcount
+            deleted = cursor.rowcount or 0
             logger.info(f"Cleaned up {deleted} old documents")
-            return deleted
+            return int(deleted)
 
     # ==========================================
     # Статистика

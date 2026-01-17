@@ -1,10 +1,8 @@
 """Настройка логирования с поддержкой Unicode для Windows."""
 
+from pathlib import Path
 import logging
 import sys
-from pathlib import Path
-
-
 class UnicodeStreamHandler(logging.StreamHandler):
     """StreamHandler с принудительной UTF-8 кодировкой для Windows"""
 

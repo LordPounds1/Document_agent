@@ -7,14 +7,13 @@ Outputs results to JSON file.
 Usage: python -m whatsapp.run_scan --output results.json --chats 10 --docs 50
 """
 
+from datetime import datetime
+from pathlib import Path
+import argparse
 import asyncio
 import json
-import sys
 import logging
-import argparse
-from pathlib import Path
-from datetime import datetime
-
+import sys
 # Add parent to path
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
@@ -35,7 +34,6 @@ async def scan_whatsapp(
     """Scan WhatsApp for documents using the working async pipeline."""
 
     from whatsapp import WhatsAppPipeline
-
     pipeline = WhatsAppPipeline(
         session_dir=session_dir,
         downloads_dir=downloads_dir,

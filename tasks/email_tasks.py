@@ -4,14 +4,13 @@
 независимо от того, открыт ли браузер пользователя.
 """
 
-import logging
 from datetime import datetime
 from typing import Any
+import logging
 
 from celery import shared_task
 
 from utils.storage import MonitorStorage, ProcessedDocument
-
 logger = logging.getLogger(__name__)
 
 
@@ -33,10 +32,9 @@ def check_email_task(
         Результат проверки с найденными договорами
     """
     from agents.email_agent import EmailAgent
-    from processors.document import DocumentProcessor
-    from core.rag import SimpleRAG
     from config import Config
-
+    from core.rag import SimpleRAG
+    from processors.document import DocumentProcessor
     logger.info(f"[Background] Checking email: {email_address}")
 
     storage = MonitorStorage()
@@ -188,13 +186,12 @@ def check_all_monitored_emails() -> dict[str, Any]:
     Эта задача вызывается периодически через Celery Beat.
     """
     from utils.storage import MonitorStorage
-
     logger.info("[Background] Starting scheduled email check for all monitors")
 
     storage = MonitorStorage()
     configs = storage.get_all_active_configs()
 
-    results = {
+    results: dict[str, Any] = {
         'checked_at': datetime.now().isoformat(),
         'total_configs': len(configs),
         'successful': 0,
@@ -240,7 +237,6 @@ def cleanup_old_results(days: int = 30) -> dict[str, Any]:
         days: Удалять результаты старше N дней
     """
     from utils.storage import MonitorStorage
-
     logger.info(f"[Background] Cleaning up results older than {days} days")
 
     storage = MonitorStorage()
@@ -266,7 +262,6 @@ def start_email_monitoring(
     периодическая задача будет проверять этот email.
     """
     from utils.storage import MonitorStorage, MonitorConfig
-
     logger.info(f"[Background] Starting monitoring for: {email_address}")
 
     storage = MonitorStorage()
@@ -297,7 +292,6 @@ def start_email_monitoring(
 def stop_email_monitoring(email_address: str) -> dict[str, Any]:
     """Остановка мониторинга для email адреса."""
     from utils.storage import MonitorStorage
-
     logger.info(f"[Background] Stopping monitoring for: {email_address}")
 
     storage = MonitorStorage()

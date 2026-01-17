@@ -1,18 +1,14 @@
 """Тесты для проверки исправлений интеграции WhatsApp."""
 
-import pytest
-from unittest.mock import Mock, patch, MagicMock, PropertyMock
 from datetime import datetime
 from pathlib import Path
-
-
+from unittest.mock import MagicMock, Mock, patch
 class TestWhatsAppRealtimeAgent:
     """Тесты для WhatsAppRealTimeAgent с проверкой исправлений."""
 
     def test_agent_initialization(self):
         """Проверка инициализации агента."""
         from agents.whatsapp_realtime import WhatsAppRealTimeAgent
-
         agent = WhatsAppRealTimeAgent(
             session_dir=".test_session",
             downloads_dir=".test_downloads"
@@ -27,7 +23,6 @@ class TestWhatsAppRealtimeAgent:
     def test_get_chats_when_not_connected(self):
         """Проверка: get_chats возвращает пустой список при отсутствии подключения."""
         from agents.whatsapp_realtime import WhatsAppRealTimeAgent
-
         agent = WhatsAppRealTimeAgent()
         agent.connected = False
         agent.driver = None
@@ -40,7 +35,6 @@ class TestWhatsAppRealtimeAgent:
     def test_get_messages_when_not_connected(self):
         """Проверка: get_messages возвращает пустой список при отсутствии подключения."""
         from agents.whatsapp_realtime import WhatsAppRealTimeAgent
-
         agent = WhatsAppRealTimeAgent()
         agent.connected = False
         agent.driver = None
@@ -53,7 +47,6 @@ class TestWhatsAppRealtimeAgent:
     def test_open_chat_when_not_connected(self):
         """Проверка: open_chat возвращает False при отсутствии подключения."""
         from agents.whatsapp_realtime import WhatsAppRealTimeAgent
-
         agent = WhatsAppRealTimeAgent()
         agent.connected = False
         agent.driver = None
@@ -65,7 +58,6 @@ class TestWhatsAppRealtimeAgent:
     def test_open_chat_with_empty_name(self):
         """Проверка: open_chat обрабатывает пустое имя чата."""
         from agents.whatsapp_realtime import WhatsAppRealTimeAgent
-
         agent = WhatsAppRealTimeAgent()
         agent.connected = True
         agent.driver = Mock()
@@ -79,7 +71,6 @@ class TestWhatsAppRealtimeAgent:
     def test_connect_without_selenium(self):
         """Проверка: connect обрабатывает отсутствие Selenium."""
         from agents.whatsapp_realtime import WhatsAppRealTimeAgent
-
         # Эмулируем отсутствие Selenium
         with patch('agents.whatsapp_realtime.SELENIUM_AVAILABLE', False):
             agent = WhatsAppRealTimeAgent()
@@ -91,7 +82,6 @@ class TestWhatsAppRealtimeAgent:
     def test_get_chats_error_handling(self):
         """Проверка: get_chats обрабатывает ошибки и возвращает пустой список."""
         from agents.whatsapp_realtime import WhatsAppRealTimeAgent
-
         agent = WhatsAppRealTimeAgent()
         agent.connected = True
         agent.driver = Mock()
@@ -107,7 +97,6 @@ class TestWhatsAppRealtimeAgent:
     def test_get_messages_error_handling(self):
         """Проверка: get_messages обрабатывает ошибки и возвращает пустой список."""
         from agents.whatsapp_realtime import WhatsAppRealTimeAgent
-
         agent = WhatsAppRealTimeAgent()
         agent.connected = True
         agent.driver = Mock()
@@ -123,7 +112,6 @@ class TestWhatsAppRealtimeAgent:
     def test_is_contract_message(self):
         """Проверка определения договоров в сообщениях."""
         from agents.whatsapp_realtime import WhatsAppRealTimeAgent
-
         agent = WhatsAppRealTimeAgent()
 
         # Тест с ключевыми словами
@@ -141,7 +129,6 @@ class TestWhatsAppRealtimeAgent:
     def test_get_stats(self):
         """Проверка получения статистики."""
         from agents.whatsapp_realtime import WhatsAppRealTimeAgent
-
         agent = WhatsAppRealTimeAgent()
         agent.processed_message_ids.add("msg1")
         agent.processed_message_ids.add("msg2")
@@ -157,7 +144,6 @@ class TestWhatsAppRealtimeAgent:
     def test_extract_text_from_file_txt(self, tmp_path):
         """Проверка извлечения текста из txt файла."""
         from agents.whatsapp_realtime import WhatsAppRealTimeAgent
-
         agent = WhatsAppRealTimeAgent()
         file_path = tmp_path / "sample.txt"
         file_path.write_text("Тестовый документ", encoding="utf-8")
@@ -173,7 +159,6 @@ class TestWhatsAppMessageCompatibility:
     def test_message_with_has_document(self):
         """Проверка работы с сообщением, имеющим has_document."""
         from agents.whatsapp_realtime import WhatsAppMessage
-
         msg = WhatsAppMessage(
             id="test1",
             sender="Test User",
@@ -193,7 +178,6 @@ class TestWhatsAppMessageCompatibility:
     def test_message_without_document(self):
         """Проверка работы с сообщением без документа."""
         from agents.whatsapp_realtime import WhatsAppMessage
-
         msg = WhatsAppMessage(
             id="test2",
             sender="Test User",
@@ -209,7 +193,6 @@ class TestWhatsAppMessageCompatibility:
     def test_getattr_compatibility(self):
         """Проверка совместимости через getattr (как в исправлениях)."""
         from agents.whatsapp_realtime import WhatsAppMessage
-
         msg = WhatsAppMessage(
             id="test3",
             sender="Test User",
@@ -252,7 +235,7 @@ class TestStreamlitIntegration:
         # Проверяем безопасный доступ
         if session_state['whatsapp_realtime']:
             # Этот блок не должен выполняться
-            assert False, "Should not execute"
+            raise AssertionError("Should not execute")
         else:
             assert True, "Correctly checks for None"
 
@@ -260,7 +243,6 @@ class TestStreamlitIntegration:
         """Проверка обработки ошибок в callback функции."""
         from agents.whatsapp_realtime import WhatsAppMessage, WhatsAppRealTimeAgent
         from datetime import datetime
-
         agent = WhatsAppRealTimeAgent()
         error_caught = []
 
@@ -318,7 +300,6 @@ class TestErrorHandling:
     def test_get_chats_returns_list_on_error(self):
         """Проверка: get_chats всегда возвращает список, даже при ошибке."""
         from agents.whatsapp_realtime import WhatsAppRealTimeAgent
-
         agent = WhatsAppRealTimeAgent()
         agent.connected = True
         agent.driver = Mock()
@@ -341,7 +322,6 @@ class TestErrorHandling:
     def test_get_messages_returns_list_on_error(self):
         """Проверка: get_messages всегда возвращает список, даже при ошибке."""
         from agents.whatsapp_realtime import WhatsAppRealTimeAgent
-
         agent = WhatsAppRealTimeAgent()
         agent.connected = True
         agent.driver = Mock()
@@ -357,7 +337,6 @@ class TestErrorHandling:
     def test_diagnose_dom_error_handling(self):
         """Проверка обработки ошибок в diagnose_dom."""
         from agents.whatsapp_realtime import WhatsAppRealTimeAgent
-
         agent = WhatsAppRealTimeAgent()
         agent.connected = True
         agent.driver = Mock()
@@ -378,7 +357,6 @@ class TestWhatsAppChatCompatibility:
     def test_chat_attributes(self):
         """Проверка атрибутов WhatsAppChat."""
         from agents.whatsapp_realtime import WhatsAppChat
-
         chat = WhatsAppChat(
             name="Test Chat",
             last_message="Last message",
@@ -394,7 +372,6 @@ class TestWhatsAppChatCompatibility:
     def test_chat_safe_access(self):
         """Проверка безопасного доступа к атрибутам чата."""
         from agents.whatsapp_realtime import WhatsAppChat
-
         chat = WhatsAppChat(
             name="Test Chat",
             last_message="",

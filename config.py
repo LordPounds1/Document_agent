@@ -1,11 +1,10 @@
 """Конфигурация приложения Document Processing Agent."""
 
+from pathlib import Path
 import logging
 import os
-from pathlib import Path
 
 from dotenv import load_dotenv
-
 load_dotenv()
 
 logger = logging.getLogger(__name__)
@@ -67,7 +66,7 @@ class Config:
     }
 
     @classmethod
-    def get_model_path(cls) -> str:
+    def get_model_path(cls) -> str | None:
         """Получение пути к модели"""
         if cls.MODEL_PATH:
             return cls.MODEL_PATH

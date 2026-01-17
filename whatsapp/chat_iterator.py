@@ -3,11 +3,10 @@
 Iterates through all chats in the sidebar and provides navigation.
 """
 
+from collections.abc import AsyncIterator
+from dataclasses import dataclass
 import asyncio
 import logging
-from dataclasses import dataclass
-from collections.abc import AsyncIterator
-
 logger = logging.getLogger(__name__)
 
 try:
@@ -15,8 +14,8 @@ try:
     PLAYWRIGHT_AVAILABLE = True
 except ImportError:
     PLAYWRIGHT_AVAILABLE = False
-    Page = None
-    ElementHandle = None
+    Page = None  # type: ignore[assignment]
+    ElementHandle = None  # type: ignore[assignment]
 
 
 @dataclass
@@ -346,9 +345,8 @@ class ChatIterator:
 
             # Method 3: Fallback - scroll through chat list and use element.click()
             async for chat in self.iter_chats(scroll_count=5):
-                if chat.name.lower() == chat_name.lower():
-                    if chat.element:
-                        await chat.element.click()
+                if chat.name.lower() == chat_name.lower() and chat.element:
+                    await chat.element.click()
                         await asyncio.sleep(1)
                         has_main = await self.page.evaluate('() => !!document.querySelector("#main")')
                         if has_main:
@@ -473,8 +471,8 @@ class ChatIterator:
             await asyncio.sleep(0.2)
             await self.page.keyboard.press('Escape')
             await asyncio.sleep(0.2)
-        except Exception:
-            pass
+        except Exception as e:
+            logger.debug(f'Failed to close chat: {e}')
 
     async def scroll_chat_history(
         self,

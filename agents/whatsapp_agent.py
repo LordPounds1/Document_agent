@@ -7,14 +7,13 @@
 Для автоматического режима используется неофициальный API через WhatsApp Web.
 """
 
-import logging
-import re
 from collections.abc import Callable
 from dataclasses import dataclass, field
 from datetime import datetime
 from pathlib import Path
 from typing import Any
-
+import logging
+import re
 logger = logging.getLogger(__name__)
 
 # Опциональные зависимости
@@ -23,10 +22,10 @@ WHATSAPP_LIB_AVAILABLE = False
 
 try:
     from selenium import webdriver
-    from selenium.webdriver.common.by import By
-    from selenium.webdriver.support.ui import WebDriverWait
-    from selenium.webdriver.support import expected_conditions as EC
     from selenium.webdriver.chrome.options import Options
+    from selenium.webdriver.common.by import By
+    from selenium.webdriver.support import expected_conditions as EC
+    from selenium.webdriver.support.ui import WebDriverWait
     SELENIUM_AVAILABLE = True
 except ImportError:
     logger.info("Selenium не установлен. Автоматический режим WhatsApp недоступен.")
@@ -180,13 +179,13 @@ class WhatsAppAgent:
 
         # Читаем файл
         try:
-            with open(file_path, 'r', encoding=encoding) as f:
+            with open(file_path, encoding=encoding) as f:
                 content = f.read()
         except UnicodeDecodeError:
             # Пробуем другие кодировки
             for enc in ['utf-8-sig', 'cp1251', 'latin-1']:
                 try:
-                    with open(file_path, 'r', encoding=enc) as f:
+                    with open(file_path, encoding=enc) as f:
                         content = f.read()
                     break
                 except UnicodeDecodeError:
@@ -577,7 +576,7 @@ class WhatsAppAgent:
 
         return results
 
-    def _read_document(self, file_path: str) -> str | None:
+    def _read_document(self, file_path: str) -> str | None:  # type: ignore[return]
         """Чтение документа (DOCX, PDF, TXT)."""
         file_path = Path(file_path)
 
@@ -588,13 +587,13 @@ class WhatsAppAgent:
 
         try:
             if suffix == '.txt':
-                with open(file_path, 'r', encoding='utf-8') as f:
-                    return f.read()
+                with open(file_path, encoding='utf-8') as f:
+                    return f.read()  # type: ignore[return]
 
             elif suffix == '.docx':
                 try:
                     import docx2txt
-                    return docx2txt.process(str(file_path))
+                    return docx2txt.process(str(file_path))  # type: ignore[return]
                 except ImportError:
                     logger.error("docx2txt не установлен")
                     return None

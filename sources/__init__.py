@@ -8,7 +8,6 @@ This module provides a common interface for different document sources:
 from sources.base import InputSource, Document, DocumentType
 from sources.email_source import EmailSource
 from sources.whatsapp_source import WhatsAppSource
-
 __all__ = [
     'InputSource',
     'Document',

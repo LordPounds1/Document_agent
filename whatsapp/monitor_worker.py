@@ -4,15 +4,14 @@ WhatsApp Monitor Worker - runs in separate subprocess.
 Monitors WhatsApp for new documents and saves results to JSON file.
 """
 
+from datetime import datetime
+from pathlib import Path
+from typing import Any
+import argparse
 import asyncio
 import json
-import sys
 import logging
-import argparse
-import time
-from pathlib import Path
-from datetime import datetime
-
+import sys
 # Add parent to path
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
@@ -34,7 +33,6 @@ async def monitor_whatsapp(
     """Run WhatsApp monitoring loop."""
 
     from whatsapp import WhatsAppPipeline
-
     results_path = Path(results_file)
     processed_files = set()
 
@@ -46,8 +44,8 @@ async def monitor_whatsapp(
                 if doc.get('file_path'):
                     processed_files.add(doc['file_path'])
             logger.info(f"Loaded {len(processed_files)} previously processed files")
-        except Exception:
-            pass
+        except Exception as e:
+            logger.debug(f'Failed to load processed files: {e}')
 
     pipeline = WhatsAppPipeline(
         session_dir=session_dir,
@@ -55,8 +53,8 @@ async def monitor_whatsapp(
         headless=False
     )
 
-    documents = []
-    stats = {
+    documents: list[dict[str, Any]] = []
+    stats: dict[str, Any] = {
         'status': 'connecting',
         'checks': 0,
         'last_check': None,
