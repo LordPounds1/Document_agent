@@ -3,15 +3,14 @@
 """
 
 import sys
-
-import pytest
 from unittest.mock import MagicMock
+import pytest
 # Mock streamlit before importing auth
 mock_st = MagicMock()
 mock_st.session_state = {}
 sys.modules['streamlit'] = mock_st
 
-from utils.auth import (
+from utils.auth import (  # noqa: E402, I001
     _hash_password,
     _verify_password,
     _load_users,

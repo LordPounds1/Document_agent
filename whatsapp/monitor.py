@@ -14,7 +14,6 @@ from collections.abc import Callable
 from dataclasses import dataclass, field
 from datetime import datetime
 from pathlib import Path
-
 logger = logging.getLogger(__name__)
 
 RESULTS_FILE = Path("whatsapp_monitor_results.json")

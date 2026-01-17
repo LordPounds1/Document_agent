@@ -9,8 +9,6 @@ import sys
 import time
 import webbrowser
 from pathlib import Path
-
-
 def main():
     # Определяем директорию приложения
     if getattr(sys, 'frozen', False):

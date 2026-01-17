@@ -7,7 +7,6 @@ import asyncio
 import logging
 from collections.abc import AsyncIterator
 from dataclasses import dataclass
-
 logger = logging.getLogger(__name__)
 
 try:

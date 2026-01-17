@@ -9,11 +9,10 @@
     pytest tests/test_whatsapp_playwright.py -v
 """
 
-from unittest.mock import AsyncMock, Mock
-
-import pytest
 from datetime import datetime
 from pathlib import Path
+from unittest.mock import AsyncMock, Mock
+import pytest
 # ============ Tests for sources/base.py ============
 class TestDocumentType:
     """Тесты для DocumentType enum."""

@@ -5,7 +5,6 @@ Re-exports WhatsAppSource from the whatsapp module for unified interface.
 
 from collections.abc import AsyncIterator
 from datetime import datetime
-
 from sources.base import Document, InputSource
 class WhatsAppSource(InputSource):
     """WhatsApp input source using Playwright browser automation.
