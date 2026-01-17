@@ -594,7 +594,7 @@ def main():
             st.rerun()
     
     # Основной контент
-    tab1, tab2, tab3, tab4 = st.tabs(["📬 Обработка почты", "📱 WhatsApp", "📋 Результаты", "📖 Справка"])
+    tab1, tab2, tab3, tab4, tab5 = st.tabs(["📬 Обработка почты", "📱 WhatsApp", "🔄 Фоновый мониторинг", "📋 Результаты", "📖 Справка"])
     
     with tab1:
         st.header("📬 Обработка писем")
@@ -1044,6 +1044,162 @@ def main():
                     os.unlink(temp_path)
     
     with tab3:
+        st.header("🔄 Фоновый мониторинг почты")
+        st.markdown("**Мониторинг работает 24/7, даже когда браузер закрыт**")
+        
+        # Проверка доступности Celery
+        try:
+            from utils.storage import MonitorStorage
+            storage = MonitorStorage()
+            celery_available = True
+        except Exception as e:
+            celery_available = False
+            st.error(f"⚠️ Фоновый мониторинг недоступен: {e}")
+        
+        if celery_available:
+            # Статистика
+            stats = storage.get_stats()
+            
+            col_stat1, col_stat2, col_stat3 = st.columns(3)
+            with col_stat1:
+                st.metric("🔄 Активных мониторов", stats.get('active_monitors', 0))
+            with col_stat2:
+                st.metric("📄 Всего документов", stats.get('total_documents', 0))
+            with col_stat3:
+                st.metric("📥 За 24 часа", stats.get('documents_24h', 0))
+            
+            st.divider()
+            
+            # Форма добавления мониторинга
+            st.subheader("➕ Добавить email для мониторинга")
+            
+            with st.form("add_monitor_form"):
+                monitor_email = st.text_input(
+                    "Email адрес",
+                    placeholder="example@gmail.com",
+                    help="Email который нужно мониторить 24/7"
+                )
+                monitor_password = st.text_input(
+                    "Пароль приложения",
+                    type="password",
+                    help="App Password для Gmail/Yandex"
+                )
+                monitor_scan_all = st.checkbox(
+                    "Сканировать все письма",
+                    value=True,
+                    help="Если выключено - только новые непрочитанные"
+                )
+                
+                submitted = st.form_submit_button("🚀 Запустить мониторинг", type="primary")
+                
+                if submitted:
+                    if not monitor_email or not monitor_password:
+                        st.error("Заполните email и пароль")
+                    else:
+                        try:
+                            from tasks.email_tasks import start_email_monitoring
+                            
+                            # Запускаем задачу через Celery
+                            task = start_email_monitoring.delay(
+                                email_address=monitor_email,
+                                password=monitor_password,
+                                scan_all=monitor_scan_all
+                            )
+                            
+                            st.success(f"✅ Мониторинг запущен для {monitor_email}")
+                            st.info("📧 Проверка будет выполняться каждые 5 минут в фоне")
+                            time.sleep(1)
+                            st.rerun()
+                            
+                        except Exception as e:
+                            st.error(f"❌ Ошибка запуска: {e}")
+                            logger.error(f"Failed to start monitoring: {e}")
+            
+            st.divider()
+            
+            # Список активных мониторов
+            st.subheader("📋 Активные мониторы")
+            
+            configs = storage.get_all_active_configs()
+            
+            if configs:
+                for config in configs:
+                    with st.container():
+                        col1, col2, col3 = st.columns([3, 2, 1])
+                        
+                        with col1:
+                            st.markdown(f"**📧 {config.email_address}**")
+                            if config.last_check:
+                                st.caption(f"Последняя проверка: {config.last_check.strftime('%d.%m.%Y %H:%M')}")
+                            else:
+                                st.caption("Ещё не проверялось")
+                        
+                        with col2:
+                            docs_count = storage.get_documents_count(config.email_address)
+                            st.metric("Документов", docs_count)
+                        
+                        with col3:
+                            if st.button("⏹️ Стоп", key=f"stop_{config.email_address}"):
+                                try:
+                                    from tasks.email_tasks import stop_email_monitoring
+                                    stop_email_monitoring.delay(config.email_address)
+                                    st.success("Мониторинг остановлен")
+                                    time.sleep(1)
+                                    st.rerun()
+                                except Exception as e:
+                                    st.error(f"Ошибка: {e}")
+                        
+                        st.divider()
+            else:
+                st.info("📭 Нет активных мониторов. Добавьте email выше.")
+            
+            # Последние найденные документы
+            st.subheader("📄 Последние найденные документы")
+            
+            docs = storage.get_documents(limit=10)
+            
+            if docs:
+                for doc in docs:
+                    with st.expander(f"📋 {doc.document_type}: {doc.email_subject[:50]}...", expanded=False):
+                        st.markdown(f"**От:** {doc.email_from}")
+                        st.markdown(f"**Дата:** {doc.email_date.strftime('%d.%m.%Y') if doc.email_date else 'N/A'}")
+                        st.markdown(f"**Тип:** {doc.document_type}")
+                        st.markdown(f"**Описание:** {doc.summary}")
+                        if doc.parties:
+                            st.markdown(f"**Стороны:** {doc.parties}")
+                        if doc.amount:
+                            st.markdown(f"**Сумма:** {doc.amount}")
+            else:
+                st.info("📭 Документы появятся после первой проверки")
+        
+        # Инструкция
+        with st.expander("📖 Как работает фоновый мониторинг", expanded=False):
+            st.markdown("""
+            ### Фоновый мониторинг 24/7
+            
+            **Преимущества:**
+            - Работает даже когда браузер закрыт
+            - Проверяет почту каждые 5 минут
+            - Автоматически находит и обрабатывает договоры
+            - Сохраняет результаты в базу данных
+            
+            **Как это работает:**
+            1. Вы добавляете email для мониторинга
+            2. Celery worker проверяет почту в фоне
+            3. Найденные договоры обрабатываются LLM
+            4. Результаты сохраняются и доступны в любое время
+            
+            **Архитектура:**
+            ```
+            [Redis] ← [Celery Beat] → [Celery Worker] → [Email + LLM]
+                                              ↓
+                                        [SQLite DB]
+                                              ↓
+                                     [Streamlit UI]
+            ```
+            """)
+    
+    with tab4:
         st.header("📋 Обработанные документы")
         
         if st.session_state.processed_documents:
@@ -1129,7 +1285,7 @@ def main():
         else:
             st.info("📭 Пока нет обработанных документов")
     
-    with tab4:
+    with tab5:
         st.header("📖 Справка")
         
         st.markdown("""

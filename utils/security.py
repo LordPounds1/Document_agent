@@ -282,3 +282,85 @@ def setup_secure_logging(log_file: Optional[str] = None, level: int = logging.IN
         level=level,
         handlers=handlers
     )
+
+
+# ============ PASSWORD ENCRYPTION FOR STORAGE ============
+
+import base64
+import os
+import hashlib
+
+# Ключ шифрования из переменных окружения или генерируется
+_ENCRYPTION_KEY = None
+
+
+def _get_encryption_key() -> bytes:
+    """Получение ключа шифрования."""
+    global _ENCRYPTION_KEY
+    
+    if _ENCRYPTION_KEY is None:
+        key_env = os.getenv('MONITOR_ENCRYPTION_KEY')
+        if key_env:
+            _ENCRYPTION_KEY = hashlib.sha256(key_env.encode()).digest()
+        else:
+            # Генерируем ключ на основе machine-specific данных
+            machine_id = os.getenv('HOSTNAME', '') + os.getenv('USER', 'default')
+            _ENCRYPTION_KEY = hashlib.sha256(machine_id.encode()).digest()
+    
+    return _ENCRYPTION_KEY
+
+
+def encrypt_password(password: str) -> str:
+    """Простое шифрование пароля для хранения.
+    
+    Использует XOR с ключом + base64.
+    Не криптостойкое, но достаточное для защиты от случайного просмотра.
+    
+    Args:
+        password: Пароль для шифрования
+        
+    Returns:
+        Зашифрованная строка в base64
+    """
+    if not password:
+        return ''
+    
+    key = _get_encryption_key()
+    password_bytes = password.encode('utf-8')
+    
+    # XOR шифрование
+    encrypted = bytes([
+        password_bytes[i] ^ key[i % len(key)]
+        for i in range(len(password_bytes))
+    ])
+    
+    return base64.b64encode(encrypted).decode('ascii')
+
+
+def decrypt_password(encrypted: str) -> str:
+    """Расшифровка пароля.
+    
+    Args:
+        encrypted: Зашифрованная строка в base64
+        
+    Returns:
+        Расшифрованный пароль
+    """
+    if not encrypted:
+        return ''
+    
+    key = _get_encryption_key()
+    
+    try:
+        encrypted_bytes = base64.b64decode(encrypted.encode('ascii'))
+        
+        # XOR дешифрование (симметричное)
+        decrypted = bytes([
+            encrypted_bytes[i] ^ key[i % len(key)]
+            for i in range(len(encrypted_bytes))
+        ])
+        
+        return decrypted.decode('utf-8')
+    except Exception as e:
+        logger.error(f"Failed to decrypt password: {e}")
+        return ''

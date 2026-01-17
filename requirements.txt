@@ -36,5 +36,10 @@ webdriver-manager>=4.0.0  # Automatic ChromeDriver
 # PDF processing
 PyPDF2>=3.0.0
 
+# Background tasks (Celery + Redis)
+celery>=5.3.0  # Фоновые задачи
+redis>=5.0.0  # Брокер сообщений
+flower>=2.0.0  # Мониторинг Celery (опционально)
+
 # Вспомогательные
 tqdm>=4.66.0

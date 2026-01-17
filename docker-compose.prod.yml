@@ -10,13 +10,43 @@
 # - Ограничения ресурсов
 # - Логирование с ротацией
 # - Автоматический перезапуск
+# - Фоновый мониторинг через Celery + Redis
 
 services:
+  # ===========================================
+  # Redis - брокер сообщений для Celery
+  # ===========================================
+  redis:
+    image: redis:7-alpine
+    container_name: document-agent-redis
+    restart: always
+    volumes:
+      - redis_data:/data
+    command: redis-server --appendonly yes
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+    networks:
+      - document-agent-network
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "5m"
+        max-file: "3"
+
+  # ===========================================
+  # Streamlit Web UI
+  # ===========================================
   document-agent:
     build:
       context: .
       dockerfile: Dockerfile
     container_name: document-agent
+    depends_on:
+      redis:
+        condition: service_healthy
     
     # Привязка только к localhost (nginx проксирует снаружи)
     ports:
@@ -30,8 +60,8 @@ services:
       - ./templates:/app/templates:ro
       # Зашифрованные шаблоны (только чтение)
       - ./templates_encrypted:/app/templates_encrypted:ro
-      # Данные (чтение/запись)
-      - ./data:/app/data
+      # Данные (чтение/запись) - общая для всех сервисов
+      - app_data:/app/data
       # Логи (чтение/запись)
       - ./logs:/app/logs
       # Файл пользователей для аутентификации
@@ -50,9 +80,13 @@ services:
       - MODEL_MAX_TOKENS=512
       # Агент
       - CHECK_INTERVAL_MINUTES=5
-      - LOG_LEVEL=WARNING  # Меньше логов в продакшене
+      - LOG_LEVEL=INFO
       # Ключ шифрования (передаётся при запуске)
       - TEMPLATES_KEY=${TEMPLATES_KEY:-}
+      # Redis для Celery
+      - REDIS_URL=redis://redis:6379/0
+      # Ключ шифрования паролей мониторинга
+      - MONITOR_ENCRYPTION_KEY=${MONITOR_ENCRYPTION_KEY:-document-agent-secret}
     
     # Политика перезапуска
     restart: always
@@ -70,10 +104,10 @@ services:
       resources:
         limits:
           cpus: '4'
-          memory: 12G  # LLM требует много RAM
+          memory: 10G  # LLM требует много RAM
         reservations:
           cpus: '2'
-          memory: 8G
+          memory: 6G
     
     # Логирование с ротацией
     logging:
@@ -91,6 +125,110 @@ services:
     networks:
       - document-agent-network
 
+  # ===========================================
+  # Celery Worker - фоновая обработка задач
+  # ===========================================
+  celery-worker:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: document-agent-worker
+    depends_on:
+      redis:
+        condition: service_healthy
+    
+    # Переопределяем команду запуска
+    entrypoint: []
+    command: celery -A celery_app worker --loglevel=info --concurrency=2
+    
+    # Volumes (те же что у основного приложения)
+    volumes:
+      - ./models:/app/models:ro
+      - ./templates:/app/templates:ro
+      - ./templates_encrypted:/app/templates_encrypted:ro
+      - app_data:/app/data
+      - ./logs:/app/logs
+    
+    # Переменные окружения
+    environment:
+      - MODEL_CONTEXT_SIZE=2048
+      - MODEL_TEMPERATURE=0.1
+      - MODEL_N_GPU_LAYERS=0
+      - MODEL_MAX_TOKENS=512
+      - REDIS_URL=redis://redis:6379/0
+      - MONITOR_ENCRYPTION_KEY=${MONITOR_ENCRYPTION_KEY:-document-agent-secret}
+      - LOG_LEVEL=INFO
+    
+    restart: always
+    
+    # Ограничения ресурсов (меньше чем у основного)
+    deploy:
+      resources:
+        limits:
+          cpus: '2'
+          memory: 4G
+        reservations:
+          cpus: '1'
+          memory: 2G
+    
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+    
+    networks:
+      - document-agent-network
+
+  # ===========================================
+  # Celery Beat - планировщик периодических задач
+  # ===========================================
+  celery-beat:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: document-agent-beat
+    depends_on:
+      redis:
+        condition: service_healthy
+      celery-worker:
+        condition: service_started
+    
+    # Переопределяем команду запуска
+    entrypoint: []
+    command: celery -A celery_app beat --loglevel=info
+    
+    # Volumes
+    volumes:
+      - app_data:/app/data
+      - ./logs:/app/logs
+    
+    # Переменные окружения
+    environment:
+      - REDIS_URL=redis://redis:6379/0
+      - MONITOR_ENCRYPTION_KEY=${MONITOR_ENCRYPTION_KEY:-document-agent-secret}
+    
+    restart: always
+    
+    deploy:
+      resources:
+        limits:
+          cpus: '0.5'
+          memory: 256M
+    
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "5m"
+        max-file: "3"
+    
+    networks:
+      - document-agent-network
+
 networks:
   document-agent-network:
     driver: bridge
+
+volumes:
+  redis_data:
+  app_data:
