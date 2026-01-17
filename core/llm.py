@@ -152,7 +152,7 @@ class LLMClient:
                 json_str = json_match.group(0)
                 result = json.loads(json_str)
                 logger.debug("Parsed JSON successfully")
-                return result
+                return result  # type: ignore[return, no-any-return]
         except json.JSONDecodeError as e:
             logger.warning(f"JSON parse failed: {e}")
 

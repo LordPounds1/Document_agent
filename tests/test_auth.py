@@ -2,10 +2,10 @@
 Тесты для модуля аутентификации.
 """
 
-import sys
-from unittest.mock import MagicMock
+import sys  # noqa: I001
+from unittest.mock import MagicMock  # noqa: I001
 
-import pytest
+import pytest  # noqa: I001
 # Mock streamlit before importing auth
 mock_st = MagicMock()
 mock_st.session_state = {}
