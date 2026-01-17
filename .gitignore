@@ -48,6 +48,7 @@ data/
 # WhatsApp сессии и загрузки
 .whatsapp_session/
 .whatsapp_session_playwright/
+whatsapp_session/
 whatsapp_downloads/
 whatsapp_scan_results.json
 whatsapp_monitor_results.json

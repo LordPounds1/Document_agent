@@ -36,6 +36,10 @@ services:
       - ./logs:/app/logs
       # Файл пользователей для аутентификации
       - ./.users:/app/.users
+      # WhatsApp/Playwright сессия (сохраняется между перезапусками)
+      - ./whatsapp_session:/app/whatsapp_session
+      # Скачанные документы из WhatsApp
+      - ./whatsapp_downloads:/app/whatsapp_downloads
     
     # Переменные окружения
     environment:
@@ -59,7 +63,7 @@ services:
       interval: 30s
       timeout: 10s
       retries: 3
-      start_period: 60s  # Модель долго загружается
+      start_period: 120s  # Модель + Playwright долго загружаются
     
     # Ограничения ресурсов
     deploy:

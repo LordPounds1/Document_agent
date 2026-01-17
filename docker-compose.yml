@@ -18,6 +18,9 @@ services:
       - ./data:/app/data
       # Логи
       - ./logs:/app/logs
+      # WhatsApp сессия
+      - ./whatsapp_session:/app/whatsapp_session
+      - ./whatsapp_downloads:/app/whatsapp_downloads
     environment:
       # Настройки LLM
       - MODEL_CONTEXT_SIZE=2048
@@ -33,7 +36,7 @@ services:
       interval: 30s
       timeout: 10s
       retries: 3
-      start_period: 40s
+      start_period: 90s  # Playwright + модель долго грузятся
 
   # Опционально: версия с GPU (NVIDIA)
   # Раскомментируйте, если есть NVIDIA GPU с Docker GPU support

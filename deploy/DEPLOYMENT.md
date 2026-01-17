@@ -193,7 +193,9 @@ sudo swapon /swapfile
 ├── templates/              # Расшифрованные шаблоны
 ├── templates_encrypted/    # Зашифрованные шаблоны
 ├── data/                   # Результаты работы
-└── logs/                   # Логи приложения
+├── logs/                   # Логи приложения
+├── whatsapp_session/       # Сессия WhatsApp (сохраняется)
+└── whatsapp_downloads/     # Скачанные документы из WhatsApp
 ```
 
 ---
