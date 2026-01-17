@@ -138,8 +138,8 @@ services:
         condition: service_healthy
     
     # Переопределяем команду запуска
-    entrypoint: []
-    command: celery -A celery_app worker --loglevel=info --concurrency=2
+    entrypoint: ["/bin/sh", "-c"]
+    command: "cd /app && python -m celery -A celery_app worker --loglevel=info --concurrency=2"
     
     # Volumes (те же что у основного приложения)
     volumes:
@@ -195,8 +195,8 @@ services:
         condition: service_started
     
     # Переопределяем команду запуска
-    entrypoint: []
-    command: celery -A celery_app beat --loglevel=info
+    entrypoint: ["/bin/sh", "-c"]
+    command: "cd /app && python -m celery -A celery_app beat --loglevel=info"
     
     # Volumes
     volumes:
