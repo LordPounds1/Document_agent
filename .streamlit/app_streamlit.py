@@ -12,9 +12,7 @@
 """
 
 import io
-import json
 import logging
-import subprocess
 import sys
 import threading
 import time
@@ -29,13 +27,13 @@ import streamlit as st
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
 # Security imports
+from utils.auth import require_auth, show_user_menu
 from utils.security import (
     login_rate_limiter,
     sanitize_html,
     validate_email,
     validate_password,
 )
-from utils.auth import require_auth, show_user_menu
 
 # Настройка логирования
 logging.basicConfig(level=logging.INFO)
@@ -68,19 +66,19 @@ class StreamlitLogHandler(logging.Handler):
             with self._lock:
                 # Добавляем в начало списка (новые сверху)
                 self._logs.insert(0, log_entry)
-                
+
                 # Ограничиваем количество логов
                 if len(self._logs) > self.max_lines:
                     self._logs = self._logs[:self.max_lines]
-        except Exception:
+        except Exception as e:
             # Игнорируем ошибки в handler, чтобы не ломать приложение
-            pass
-    
+            logger.debug(f"Error in log handler: {e}")
+
     def get_logs(self) -> list:
         """Получить копию логов (потокобезопасно)."""
         with self._lock:
             return self._logs.copy()
-    
+
     def clear_logs(self):
         """Очистить логи (потокобезопасно)."""
         with self._lock:
@@ -99,16 +97,21 @@ for logger_name in ['whatsapp', 'whatsapp.client', 'whatsapp.adapter', 'whatsapp
 root_logger = logging.getLogger()
 root_logger.addHandler(whatsapp_log_handler)
 
-# Импорт компонентов
-from agents.email_agent import EmailAgent
-from agents.whatsapp_agent import WhatsAppAgent
-from processors.document import DocumentProcessor
-from core.rag import SimpleRAG
+# Импорт компонентов (после sys.path.insert)
+from agents.email_agent import EmailAgent  # noqa: E402
+from agents.whatsapp_agent import WhatsAppAgent  # noqa: E402
+from core.rag import SimpleRAG  # noqa: E402
+from processors.document import DocumentProcessor  # noqa: E402
 
 # Импорт WhatsApp Playwright модуля
 try:
-    import playwright
-    from whatsapp.monitor import WhatsAppMonitor, get_monitor, create_monitor, stop_monitor
+    import playwright  # noqa: E402
+    from whatsapp.monitor import (  # noqa: E402
+        WhatsAppMonitor,
+        create_monitor,
+        get_monitor,
+        stop_monitor,
+    )
     PLAYWRIGHT_AVAILABLE = True
 except ImportError:
     PLAYWRIGHT_AVAILABLE = False
