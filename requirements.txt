@@ -23,6 +23,7 @@ torch>=2.0.0  # Опционально
 sentencepiece>=0.1.99  # Опционально
 
 # Векторные embeddings и RAG
+chromadb>=0.4.0  # Векторная база данных для RAG
 sentence-transformers>=2.2.0  # Для векторных представлений шаблонов
 scikit-learn>=1.3.0  # Fallback для TF-IDF embeddings
 numpy>=1.24.0  # Для работы с векторами
