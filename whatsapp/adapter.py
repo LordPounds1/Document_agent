@@ -7,11 +7,12 @@ import asyncio
 import logging
 from datetime import datetime
 from pathlib import Path
-from typing import AsyncIterator, Callable, List, Optional
+from collections.abc import AsyncIterator, Callable
+from typing import Any
 
 from sources.base import Document, DocumentType, InputSource
 from whatsapp.client import WhatsAppClient
-from whatsapp.chat_iterator import ChatIterator, ChatInfo
+from whatsapp.chat_iterator import ChatIterator
 from whatsapp.message_scanner import MessageScanner, MessageInfo
 from whatsapp.downloader import DocumentDownloader
 

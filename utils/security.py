@@ -8,12 +8,13 @@
 - Безопасного логирования
 """
 
+import base64
+import hashlib
 import html
 import logging
+import os
 import re
 import time
-from functools import wraps
-from typing import Optional
 
 logger = logging.getLogger(__name__)
 
@@ -285,10 +286,6 @@ def setup_secure_logging(log_file: str | None = None, level: int = logging.INFO)
 
 
 # ============ PASSWORD ENCRYPTION FOR STORAGE ============
-
-import base64
-import os
-import hashlib
 
 # Ключ шифрования из переменных окружения или генерируется
 _ENCRYPTION_KEY = None

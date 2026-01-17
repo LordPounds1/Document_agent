@@ -46,7 +46,7 @@ async def monitor_whatsapp(
                 if doc.get('file_path'):
                     processed_files.add(doc['file_path'])
             logger.info(f"Loaded {len(processed_files)} previously processed files")
-        except:
+        except Exception:
             pass
 
     pipeline = WhatsAppPipeline(

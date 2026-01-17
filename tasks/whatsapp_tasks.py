@@ -6,7 +6,7 @@ WhatsApp мониторинг сложнее из-за необходимост�
 
 import logging
 from datetime import datetime
-from typing import Any, Dict
+from typing import Any
 
 from celery import shared_task
 

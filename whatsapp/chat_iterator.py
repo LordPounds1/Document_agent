@@ -6,7 +6,7 @@ Iterates through all chats in the sidebar and provides navigation.
 import asyncio
 import logging
 from dataclasses import dataclass
-from typing import AsyncIterator, List, Optional
+from collections.abc import AsyncIterator
 
 logger = logging.getLogger(__name__)
 
@@ -473,7 +473,7 @@ class ChatIterator:
             await asyncio.sleep(0.2)
             await self.page.keyboard.press('Escape')
             await asyncio.sleep(0.2)
-        except:
+        except Exception:
             pass
 
     async def scroll_chat_history(

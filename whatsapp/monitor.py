@@ -9,11 +9,10 @@ import json
 import logging
 import subprocess
 import sys
-import time
+from collections.abc import Callable
 from dataclasses import dataclass, field
 from datetime import datetime
 from pathlib import Path
-from typing import Callable, Dict, List, Optional, Set
 
 logger = logging.getLogger(__name__)
 
@@ -25,7 +24,7 @@ class MonitorEvent:
     """Event from WhatsApp monitor."""
     event_type: str  # 'document_found', 'document_processed', 'error', 'status'
     timestamp: datetime = field(default_factory=datetime.now)
-    data: Dict = field(default_factory=dict)
+    data: dict = field(default_factory=dict)
     message: str = ""
 
 
@@ -79,7 +78,7 @@ class WhatsAppMonitor:
         try:
             data = json.loads(RESULTS_FILE.read_text(encoding='utf-8'))
             return data.get('status') == 'monitoring'
-        except:
+        except Exception:
             return False
 
     def start(self) -> bool:
@@ -96,7 +95,7 @@ class WhatsAppMonitor:
                 for doc in data.get('documents', []):
                     if doc.get('file_path'):
                         self._processed_files.add(doc['file_path'])
-            except:
+            except Exception:
                 pass
 
         # Start subprocess
@@ -133,10 +132,10 @@ class WhatsAppMonitor:
             try:
                 self._process.terminate()
                 self._process.wait(timeout=5)
-            except:
+            except Exception:
                 try:
                     self._process.kill()
-                except:
+                except Exception:
                     pass
             self._process = None
             logger.info("Monitor subprocess stopped")
@@ -145,7 +144,7 @@ class WhatsAppMonitor:
         """Mark file as already processed."""
         self._processed_files.add(file_path)
 
-    def get_new_documents(self) -> list[Dict]:
+    def get_new_documents(self) -> list[dict]:
         """Get new documents from results file."""
         if not RESULTS_FILE.exists():
             return []
@@ -160,7 +159,7 @@ class WhatsAppMonitor:
             if worker_stats.get('last_check'):
                 try:
                     self.stats['last_check'] = datetime.fromisoformat(worker_stats['last_check'])
-                except:
+                except Exception:
                     pass
             self.stats['errors'] = worker_stats.get('errors', 0)
 
@@ -190,7 +189,7 @@ class WhatsAppMonitor:
         try:
             data = json.loads(RESULTS_FILE.read_text(encoding='utf-8'))
             return data.get('status', 'unknown')
-        except:
+        except Exception:
             return "unknown"
 
     def read_subprocess_output(self) -> list[str]:
@@ -198,14 +197,13 @@ class WhatsAppMonitor:
         lines = []
         if self._process and self._process.stdout:
             try:
-                import select
                 # Non-blocking read on Windows is tricky, just try readline
                 while True:
                     line = self._process.stdout.readline()
                     if not line:
                         break
                     lines.append(line.strip())
-            except:
+            except Exception:
                 pass
         return lines
 

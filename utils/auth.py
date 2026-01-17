@@ -12,7 +12,7 @@ import os
 import secrets
 import time
 from pathlib import Path
-from typing import Optional, Tuple
+# Типы не используются, удалены
 
 import streamlit as st
 

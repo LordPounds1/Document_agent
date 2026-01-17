@@ -12,12 +12,12 @@ import json
 import logging
 import time
 from contextlib import contextmanager
-from dataclasses import dataclass, field, asdict
+from dataclasses import dataclass, field
 from datetime import datetime
 from functools import wraps
 from pathlib import Path
 from threading import Lock
-from typing import Any, Dict, List, Optional
+from typing import Any
 
 logger = logging.getLogger(__name__)
 
@@ -51,33 +51,33 @@ class MetricsCollector:
 
     # ============ Counters ============
 
-    def increment(self, name: str, value: float = 1.0, labels: Dict | None = None):
+    def increment(self, name: str, value: float = 1.0, labels: dict | None = None):
         """Увеличить счётчик."""
         key = self._make_key(name, labels)
         with self._lock:
             self._counters[key] = self._counters.get(key, 0) + value
 
-    def get_counter(self, name: str, labels: Dict | None = None) -> float:
+    def get_counter(self, name: str, labels: dict | None = None) -> float:
         """Получить значение счётчика."""
         key = self._make_key(name, labels)
         return self._counters.get(key, 0)
 
     # ============ Gauges ============
 
-    def set_gauge(self, name: str, value: float, labels: Dict | None = None):
+    def set_gauge(self, name: str, value: float, labels: dict | None = None):
         """Установить значение gauge."""
         key = self._make_key(name, labels)
         with self._lock:
             self._gauges[key] = value
 
-    def get_gauge(self, name: str, labels: Dict | None = None) -> float:
+    def get_gauge(self, name: str, labels: dict | None = None) -> float:
         """Получить значение gauge."""
         key = self._make_key(name, labels)
         return self._gauges.get(key, 0)
 
     # ============ Histograms ============
 
-    def observe(self, name: str, value: float, labels: Dict | None = None):
+    def observe(self, name: str, value: float, labels: dict | None = None):
         """Записать значение в гистограмму."""
         key = self._make_key(name, labels)
         with self._lock:
@@ -88,7 +88,7 @@ class MetricsCollector:
             if len(self._histograms[key]) > 10000:
                 self._histograms[key] = self._histograms[key][-5000:]
 
-    def get_histogram_stats(self, name: str, labels: Dict | None = None) -> Dict:
+    def get_histogram_stats(self, name: str, labels: dict | None = None) -> dict:
         """Получить статистику гистограммы."""
         key = self._make_key(name, labels)
         values = self._histograms.get(key, [])
@@ -112,7 +112,7 @@ class MetricsCollector:
     # ============ Timing ============
 
     @contextmanager
-    def timer(self, name: str, labels: Dict | None = None):
+    def timer(self, name: str, labels: dict | None = None):
         """Context manager для измерения времени."""
         start = time.time()
         try:
@@ -122,7 +122,7 @@ class MetricsCollector:
             self.observe(f"{name}_duration_seconds", duration, labels)
             self.increment(f"{name}_total", 1, labels)
 
-    def timed(self, name: str, labels: Dict | None = None):
+    def timed(self, name: str, labels: dict | None = None):
         """Декоратор для измерения времени выполнения функции."""
         def decorator(func):
             @wraps(func)
@@ -134,7 +134,7 @@ class MetricsCollector:
 
     # ============ Export ============
 
-    def _make_key(self, name: str, labels: Dict | None) -> str:
+    def _make_key(self, name: str, labels: dict | None) -> str:
         """Создать уникальный ключ для метрики."""
         if labels:
             label_str = ",".join(f"{k}={v}" for k, v in sorted(labels.items()))

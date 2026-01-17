@@ -12,7 +12,7 @@ import re
 from dataclasses import dataclass, field
 from datetime import datetime
 from pathlib import Path
-from typing import Any, Dict, List, Optional
+from typing import Any
 
 logger = logging.getLogger(__name__)
 
@@ -710,7 +710,7 @@ class SimpleRAG:
 
         return stats
 
-    def add_document(self, content: str, metadata: Dict | None = None) -> bool:
+    def add_document(self, content: str, metadata: dict | None = None) -> bool:
         """Добавление документа в индекс.
 
         Args:

@@ -4,7 +4,7 @@ Re-exports WhatsAppSource from the whatsapp module for unified interface.
 """
 
 from datetime import datetime
-from typing import AsyncIterator, Optional
+from collections.abc import AsyncIterator
 
 from sources.base import Document, InputSource
 

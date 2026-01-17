@@ -5,16 +5,14 @@ Downloads documents (PDF, DOCX) from WhatsApp messages.
 
 import asyncio
 import logging
-import re
 from pathlib import Path
-from typing import List, Optional, Tuple
 
 from whatsapp.message_scanner import MessageInfo
 
 logger = logging.getLogger(__name__)
 
 try:
-    from playwright.async_api import Page, Download, ElementHandle
+    from playwright.async_api import Page
     PLAYWRIGHT_AVAILABLE = True
 except ImportError:
     PLAYWRIGHT_AVAILABLE = False
@@ -151,7 +149,7 @@ class DocumentDownloader:
         """Download documents from multiple messages.
 
         Args:
-            messages: List of messages with documents.
+            messages: list of messages with documents.
 
         Returns:
             List of (message, file_path) tuples for successful downloads.

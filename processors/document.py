@@ -3,7 +3,7 @@
 import logging
 import re
 from datetime import datetime
-from typing import Any, Dict, List, Optional
+from typing import Any
 
 from config import Config
 from core.llm import LLMClient
@@ -256,7 +256,7 @@ class DocumentProcessor:
 
         return result
 
-    def process_email_with_contract(self, email_data: Dict,
+    def process_email_with_contract(self, email_data: dict,
                                     contract_text: str,
                                     auto_learn: bool = True) -> dict[str, Any]:
         """Обработка email с договором

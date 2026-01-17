@@ -3,10 +3,8 @@
 Handles browser launch, session persistence, and QR code authentication.
 """
 
-import asyncio
 import logging
 from pathlib import Path
-from typing import Optional
 
 logger = logging.getLogger(__name__)
 

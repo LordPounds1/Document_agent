@@ -6,10 +6,9 @@ Scans chat messages to find documents (PDF, DOCX, etc.).
 import asyncio
 import hashlib
 import logging
-import re
 from dataclasses import dataclass, field
 from datetime import datetime
-from typing import Any, Dict, List, Optional
+from typing import Any
 
 logger = logging.getLogger(__name__)
 
@@ -165,7 +164,7 @@ class MessageScanner:
                     if message_list:
                         logger.debug(f'Found message list with: {selector}')
                         break
-                except:
+                except Exception:
                     continue
 
             if not message_list:

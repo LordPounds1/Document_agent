@@ -4,7 +4,7 @@ import json
 import logging
 import re
 from threading import Semaphore
-from typing import Any, Dict, Optional
+from typing import Any
 
 logger = logging.getLogger(__name__)
 
@@ -139,7 +139,7 @@ class LLMClient:
 
 Верни результат СТРОГО в формате JSON без комментариев:
 {{
-{chr(10).join(f'  "{field}": "..."' for field in schema.keys())}
+{chr(10).join(f'  "{field}": "..."' for field in schema)}
 }}
 """
 
@@ -152,14 +152,14 @@ class LLMClient:
             if json_match:
                 json_str = json_match.group(0)
                 result = json.loads(json_str)
-                logger.debug(f"Parsed JSON successfully")
+                logger.debug("Parsed JSON successfully")
                 return result
         except json.JSONDecodeError as e:
             logger.warning(f"JSON parse failed: {e}")
 
         # Fallback: извлекаем поля regex
         result = {}
-        for field in schema.keys():
+        for field in schema:
             pattern = rf'"{field}"\s*:\s*"([^"]*)"'
             match = re.search(pattern, text)
             if match:

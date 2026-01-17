@@ -5,7 +5,7 @@ Wraps the existing EmailAgent to conform to the InputSource interface.
 
 import logging
 from datetime import datetime
-from typing import Iterator, Optional
+from collections.abc import Iterator
 
 from agents.email_agent import EmailAgent
 from sources.base import Document, DocumentType, SyncInputSource

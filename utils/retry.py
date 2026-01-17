@@ -12,7 +12,7 @@ import functools
 import logging
 import random
 import time
-from typing import Callable, Optional, Tuple, Type, Union
+from collections.abc import Callable
 
 logger = logging.getLogger(__name__)
 
