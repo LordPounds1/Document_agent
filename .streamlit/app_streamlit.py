@@ -11,16 +11,16 @@
 5. Мониторинг новых писем
 """
 
-import importlib.util
-import io
-import logging
-import sys
-import threading
-import time
-from datetime import datetime
-from pathlib import Path
+import importlib.util  # noqa: I001
+import io  # noqa: I001
+import logging  # noqa: I001
+import sys  # noqa: I001
+import threading  # noqa: I001
+import time  # noqa: I001
+from datetime import datetime  # noqa: I001
+from pathlib import Path  # noqa: I001
 
-import pandas as pd
+import pandas as pd  # noqa: I001
 import streamlit as st  # noqa: I001
 # Добавляем родительскую директорию в путь для импортов
 sys.path.insert(0, str(Path(__file__).parent.parent))
