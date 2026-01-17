@@ -9,10 +9,11 @@ import logging
 from dataclasses import dataclass, field
 from datetime import datetime
 from typing import Any
+
 logger = logging.getLogger(__name__)
 
 try:
-    from playwright.async_api import Page, ElementHandle
+    from playwright.async_api import ElementHandle, Page
     PLAYWRIGHT_AVAILABLE = True
 except ImportError:
     PLAYWRIGHT_AVAILABLE = False

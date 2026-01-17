@@ -9,11 +9,11 @@
     pytest tests/test_whatsapp_playwright.py -v
 """
 
+from unittest.mock import AsyncMock, Mock
+
 import pytest
 from datetime import datetime
 from pathlib import Path
-
-from unittest.mock import AsyncMock, Mock
 # ============ Tests for sources/base.py ============
 class TestDocumentType:
     """Тесты для DocumentType enum."""
@@ -351,7 +351,7 @@ class TestIntegration:
 
     def test_document_processor_integration(self):
         """Проверка интеграции с существующим DocumentProcessor."""
-        from sources.base import Document, DocumentType
+        from sources.base import Document
         # Create a mock document from WhatsApp
         doc = Document(
             id='wa_test_001',

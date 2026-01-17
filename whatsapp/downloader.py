@@ -8,6 +8,7 @@ import logging
 from pathlib import Path
 
 from whatsapp.message_scanner import MessageInfo
+
 logger = logging.getLogger(__name__)
 
 try:

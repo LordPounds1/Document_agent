@@ -10,7 +10,6 @@ Retry-декораторы и утилиты для устойчивой раб�
 
 import functools
 import logging
-import platform
 import random
 import time
 from collections.abc import Callable
@@ -207,8 +206,8 @@ def with_timeout(seconds: float):
     Args:
         seconds: Таймаут в секундах
     """
-    import platform
-    if platform.system() == "Windows":
+    import platform as _platform
+    if _platform.system() == "Windows":
         # Windows: возвращаем функцию без изменений
         # Таймауты нужно обрабатывать внутри функций
         def windows_decorator(func):

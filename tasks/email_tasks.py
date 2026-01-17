@@ -4,13 +4,14 @@
 независимо от того, открыт ли браузер пользователя.
 """
 
+import logging
 from datetime import datetime
 from typing import Any
-import logging
 
 from celery import shared_task
 
 from utils.storage import MonitorStorage, ProcessedDocument
+
 logger = logging.getLogger(__name__)
 
 

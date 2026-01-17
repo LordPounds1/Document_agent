@@ -5,7 +5,6 @@ Handles browser launch, session persistence, and QR code authentication.
 
 import logging
 from pathlib import Path
-
 logger = logging.getLogger(__name__)
 
 # Check Playwright availability

@@ -9,6 +9,7 @@ from datetime import datetime
 
 from agents.email_agent import EmailAgent
 from sources.base import Document, DocumentType, SyncInputSource
+
 logger = logging.getLogger(__name__)
 
 

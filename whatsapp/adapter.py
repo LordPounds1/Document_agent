@@ -13,7 +13,8 @@ from sources.base import Document, DocumentType, InputSource
 from whatsapp.chat_iterator import ChatIterator
 from whatsapp.client import WhatsAppClient
 from whatsapp.downloader import DocumentDownloader
-from whatsapp.message_scanner import MessageScanner, MessageInfo
+from whatsapp.message_scanner import MessageInfo, MessageScanner
+
 logger = logging.getLogger(__name__)
 
 

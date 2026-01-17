@@ -8,6 +8,7 @@ from typing import Any
 from config import Config
 from core.llm import LLMClient
 from core.rag import SimpleRAG
+
 logger = logging.getLogger(__name__)
 
 

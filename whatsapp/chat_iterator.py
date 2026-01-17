@@ -7,10 +7,11 @@ import asyncio
 import logging
 from collections.abc import AsyncIterator
 from dataclasses import dataclass
+
 logger = logging.getLogger(__name__)
 
 try:
-    from playwright.async_api import Page, ElementHandle
+    from playwright.async_api import ElementHandle, Page
     PLAYWRIGHT_AVAILABLE = True
 except ImportError:
     PLAYWRIGHT_AVAILABLE = False
