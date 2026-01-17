@@ -2,8 +2,11 @@
 
 from datetime import datetime
 from pathlib import Path
-from unittest.mock import Mock, patch
+
 import pytest
+from unittest.mock import Mock, patch
+
+
 class TestWhatsAppRealtimeAgent:
     """Тесты для WhatsAppRealTimeAgent с проверкой исправлений."""
 

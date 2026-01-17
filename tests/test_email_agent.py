@@ -1,6 +1,8 @@
 """Tests for agents/email_agent.py."""
 
 from unittest.mock import MagicMock, patch
+
+
 class TestEmailAgent:
     """Тесты для класса EmailAgent."""
 

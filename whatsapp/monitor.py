@@ -14,6 +14,7 @@ from collections.abc import Callable
 from dataclasses import dataclass, field
 from datetime import datetime
 from pathlib import Path
+
 logger = logging.getLogger(__name__)
 
 RESULTS_FILE = Path("whatsapp_monitor_results.json")
@@ -168,7 +169,9 @@ class WhatsAppMonitor:
                 if file_path and file_path not in self._processed_files:
                     self._processed_files.add(file_path)
                     new_docs.append(doc)
-                    self.stats['documents_found'] += 1
+                    found_count = self.stats.get('documents_found', 0)
+                    if isinstance(found_count, int):
+                        self.stats['documents_found'] = found_count + 1
 
             return new_docs
 

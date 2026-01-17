@@ -6,7 +6,9 @@ Downloads documents (PDF, DOCX) from WhatsApp messages.
 import asyncio
 import logging
 from pathlib import Path
+
 from whatsapp.message_scanner import MessageInfo
+
 logger = logging.getLogger(__name__)
 
 try:
@@ -14,7 +16,7 @@ try:
     PLAYWRIGHT_AVAILABLE = True
 except ImportError:
     PLAYWRIGHT_AVAILABLE = False
-    Page = None  # type: ignore[assignment]
+    Page = None  # type: ignore[assignment, misc]
 
 
 class DocumentDownloader:
@@ -111,7 +113,10 @@ class DocumentDownloader:
             if not download_btn:
                 # Try clicking on the document name span directly - might trigger download
                 logger.debug('No download button, trying direct click on document')
-                return await self._download_via_click(message.document_name)
+                doc_name = message.document_name
+                if doc_name:
+                    return await self._download_via_click(doc_name)
+                return None
 
             # Start download
             async with self.page.expect_download(timeout=self.timeout) as download_info:

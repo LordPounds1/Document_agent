@@ -19,6 +19,7 @@ import threading
 import time
 from datetime import datetime
 from pathlib import Path
+
 import pandas as pd
 import streamlit as st
 # Добавляем родительскую директорию в путь для импортов
@@ -96,13 +97,13 @@ root_logger = logging.getLogger()
 root_logger.addHandler(whatsapp_log_handler)
 
 # Импорт компонентов (после sys.path.insert)
-from agents.email_agent import EmailAgent  # noqa: E402
-from agents.whatsapp_agent import WhatsAppAgent  # noqa: E402
-from core.rag import SimpleRAG  # noqa: E402
-from processors.document import DocumentProcessor  # noqa: E402
+from agents.email_agent import EmailAgent  # noqa: E402, I001
+from agents.whatsapp_agent import WhatsAppAgent  # noqa: E402, I001
+from core.rag import SimpleRAG  # noqa: E402, I001
+from processors.document import DocumentProcessor  # noqa: E402, I001
 # Импорт WhatsApp Playwright модуля
 if importlib.util.find_spec('playwright') is not None:
-    from whatsapp.monitor import (  # noqa: E402
+    from whatsapp.monitor import (  # noqa: E402, I001
         WhatsAppMonitor,
         create_monitor,
         get_monitor,

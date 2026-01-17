@@ -14,6 +14,7 @@ from dataclasses import dataclass, field
 from datetime import datetime
 from pathlib import Path
 from typing import Any
+
 logger = logging.getLogger(__name__)
 
 # Опциональные зависимости
@@ -163,13 +164,13 @@ class WhatsAppAgent:
         Returns:
             WhatsAppChat с распарсенными сообщениями
         """
-        file_path = Path(file_path)
+        file_path_obj = Path(file_path)
 
-        if not file_path.exists():
-            raise FileNotFoundError(f"Файл не найден: {file_path}")
+        if not file_path_obj.exists():
+            raise FileNotFoundError(f"Файл не найден: {file_path_obj}")
 
         # Определяем имя чата из имени файла
-        chat_name = file_path.stem.replace("WhatsApp Chat with ", "").replace("Чат WhatsApp с ", "")
+        chat_name = file_path_obj.stem.replace("WhatsApp Chat with ", "").replace("Чат WhatsApp с ", "")
 
         chat = WhatsAppChat(
             name=chat_name,
@@ -410,15 +411,17 @@ class WhatsAppAgent:
             options.add_argument("--disable-popup-blocking")
 
             # Инициализация драйвера
-            self.driver = webdriver.Chrome(options=options)
-            self.driver.get("https://web.whatsapp.com")
+            driver = webdriver.Chrome(options=options)
+            self.driver = driver  # type: ignore[assignment]
+            driver.get("https://web.whatsapp.com")
 
             logger.info("Ожидание загрузки WhatsApp Web...")
             logger.info("Если QR-код не был отсканирован ранее, отсканируйте его в браузере")
 
             # Ждём загрузки чатов (до 60 секунд)
-            wait = WebDriverWait(self.driver, 60)
-            wait.until(EC.presence_of_element_located((By.CSS_SELECTOR, '[data-testid="chat-list"]')))
+            if driver:
+                wait = WebDriverWait(driver, 60)
+                wait.until(EC.presence_of_element_located((By.CSS_SELECTOR, '[data-testid="chat-list"]')))
 
             self.connected = True
             logger.info("✅ Подключено к WhatsApp Web")
@@ -578,22 +581,22 @@ class WhatsAppAgent:
 
     def _read_document(self, file_path: str) -> str | None:  # type: ignore[return]
         """Чтение документа (DOCX, PDF, TXT)."""
-        file_path = Path(file_path)
+        file_path_obj = Path(file_path)
 
-        if not file_path.exists():
+        if not file_path_obj.exists():
             return None
 
-        suffix = file_path.suffix.lower()
+        suffix = file_path_obj.suffix.lower()
 
         try:
             if suffix == '.txt':
-                with open(file_path, encoding='utf-8') as f:
+                with open(file_path_obj, encoding='utf-8') as f:
                     return f.read()  # type: ignore[return]
 
             elif suffix == '.docx':
                 try:
                     import docx2txt
-                    return docx2txt.process(str(file_path))  # type: ignore[return]
+                    return docx2txt.process(str(file_path_obj))  # type: ignore[return]
                 except ImportError:
                     logger.error("docx2txt не установлен")
                     return None

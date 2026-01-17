@@ -13,19 +13,20 @@ from dataclasses import dataclass, field
 from datetime import datetime
 from pathlib import Path
 from typing import Any
+
 logger = logging.getLogger(__name__)
 
 # Опциональные зависимости для векторного поиска
 try:
-    import chromadb
-    from chromadb.config import Settings
+    import chromadb  # noqa: I001
+    from chromadb.config import Settings  # noqa: I001
     CHROMADB_AVAILABLE = True
 except ImportError:
     CHROMADB_AVAILABLE = False
     logger.warning("ChromaDB not installed. Using keyword matching fallback.")
 
 try:
-    from sentence_transformers import SentenceTransformer
+    from sentence_transformers import SentenceTransformer  # noqa: I001
     EMBEDDINGS_AVAILABLE = True
 except ImportError:
     EMBEDDINGS_AVAILABLE = False
@@ -418,9 +419,9 @@ class SimpleRAG:
     def get_learning_stats(self) -> dict[str, Any]:
         """Получение статистики обучения."""
         # Статистика по типам документов
-        type_counts = {}
-        source_counts = {}
-        keyword_counts = {}
+        type_counts: dict[str, int] = {}
+        source_counts: dict[str, int] = {}
+        keyword_counts: dict[str, int] = {}
 
         for record in self.learning_history:
             # По типам

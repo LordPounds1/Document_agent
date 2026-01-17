@@ -8,12 +8,13 @@
 
 import logging
 import os
+import sqlite3
 from contextlib import contextmanager
 from dataclasses import dataclass
 from datetime import datetime, timedelta
 from pathlib import Path
 from typing import Any
-import sqlite3
+
 logger = logging.getLogger(__name__)
 
 # Путь к базе данных
@@ -298,7 +299,8 @@ class MonitorStorage:
                 doc.processed_at.isoformat() if doc.processed_at else datetime.now().isoformat()
             ))
 
-            return cursor.lastrowid
+            rowid = cursor.lastrowid
+            return int(rowid) if rowid else 0
 
     def get_documents(
         self,
@@ -356,7 +358,7 @@ class MonitorStorage:
             )
             return {row['email_id'] for row in cursor.fetchall()}
 
-    def get_documents_count(self, email_address: str = None) -> int:
+    def get_documents_count(self, email_address: str | None = None) -> int:
         """Получение количества документов."""
         with self._get_connection() as conn:
             cursor = conn.cursor()
@@ -369,7 +371,8 @@ class MonitorStorage:
             else:
                 cursor.execute('SELECT COUNT(*) as cnt FROM processed_documents')
 
-            return cursor.fetchone()['cnt']
+            row = cursor.fetchone()
+            return int(row['cnt']) if row and row['cnt'] is not None else 0
 
     def cleanup_old_documents(self, days: int = 30) -> int:
         """Удаление документов старше N дней."""

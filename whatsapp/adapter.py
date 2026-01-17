@@ -8,11 +8,13 @@ import logging
 from collections.abc import AsyncIterator, Callable
 from datetime import datetime
 from pathlib import Path
+
 from sources.base import Document, DocumentType, InputSource
 from whatsapp.chat_iterator import ChatIterator
 from whatsapp.client import WhatsAppClient
 from whatsapp.downloader import DocumentDownloader
 from whatsapp.message_scanner import MessageInfo, MessageScanner
+
 logger = logging.getLogger(__name__)
 
 
@@ -142,7 +144,7 @@ class WhatsAppPipeline:
 
             try:
                 # Open chat
-                if not await self._iterator.open_chat(chat.name):
+                if not self._iterator or not await self._iterator.open_chat(chat.name):
                     logger.warning(f'Could not open chat: {chat.name}')
                     continue
 
@@ -165,6 +167,9 @@ class WhatsAppPipeline:
                     await asyncio.sleep(0.5)
 
                 # Find documents
+                if not self._scanner:
+                    logger.warning(f'MessageScanner not initialized for chat: {chat.name}')
+                    continue
                 messages = await self._scanner.find_documents(chat.name)
                 logger.debug(f'Found {len(messages)} document messages in {chat.name}')
 
@@ -177,6 +182,9 @@ class WhatsAppPipeline:
                     if self.on_document_found:
                         self.on_document_found(msg)
 
+                    if not self._downloader:
+                        logger.warning('DocumentDownloader not initialized')
+                        continue
                     file_path = await self._downloader.download(msg)
 
                     if file_path:

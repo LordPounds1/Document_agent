@@ -9,15 +9,16 @@ import logging
 from dataclasses import dataclass, field
 from datetime import datetime
 from typing import Any
+
 logger = logging.getLogger(__name__)
 
 try:
-    from playwright.async_api import ElementHandle, Page
+    from playwright.async_api import ElementHandle, Page  # noqa: I001
     PLAYWRIGHT_AVAILABLE = True
 except ImportError:
     PLAYWRIGHT_AVAILABLE = False
-    Page = None  # type: ignore[assignment]
-    ElementHandle = None  # type: ignore[assignment]
+    Page = None  # type: ignore[assignment, misc]
+    ElementHandle = None  # type: ignore[assignment, misc]
 
 
 @dataclass

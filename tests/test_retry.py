@@ -3,7 +3,9 @@
 """
 
 import time
+
 import pytest
+
 from utils.retry import (
     CircuitBreaker,
     CircuitOpenError,

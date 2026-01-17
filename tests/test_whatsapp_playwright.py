@@ -11,9 +11,13 @@
 
 from datetime import datetime
 from pathlib import Path
-from unittest.mock import AsyncMock, Mock
+
 import pytest
+from unittest.mock import AsyncMock, Mock
+
 # ============ Tests for sources/base.py ============
+
+
 class TestDocumentType:
     """Тесты для DocumentType enum."""
 

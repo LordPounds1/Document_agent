@@ -12,7 +12,9 @@ import os
 import secrets
 import time
 from pathlib import Path
+
 import streamlit as st
+
 logger = logging.getLogger(__name__)
 
 # Файл с пользователями (создаётся при первом запуске)
@@ -56,7 +58,7 @@ def _verify_password(password: str, stored_hash: str, salt: str) -> bool:
     Returns:
         True если пароль верный
     """
-    computed_hash, _ = _hash_password(password.encode('utf-8'), salt)
+    computed_hash, _ = _hash_password(password, salt)
     return hmac.compare_digest(computed_hash, stored_hash)
 
 

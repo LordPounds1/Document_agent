@@ -5,12 +5,13 @@ Handles browser launch, session persistence, and QR code authentication.
 
 import logging
 from pathlib import Path
+
 logger = logging.getLogger(__name__)
 
 # Check Playwright availability
 PLAYWRIGHT_AVAILABLE = False
 try:
-    from playwright.async_api import (
+    from playwright.async_api import (  # noqa: I001
         Browser,
         BrowserContext,
         Page,
@@ -104,7 +105,8 @@ class WhatsAppClient:
             return False
 
         try:
-            self._playwright = await async_playwright().start()
+            playwright_instance = await async_playwright().start()
+            self._playwright = playwright_instance  # type: ignore[assignment]
 
             # Launch browser with persistent context for session
             self._context = await self._playwright.chromium.launch_persistent_context(
