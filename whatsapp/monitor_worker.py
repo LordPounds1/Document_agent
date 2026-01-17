@@ -32,12 +32,12 @@ async def monitor_whatsapp(
     timeout: int
 ):
     """Run WhatsApp monitoring loop."""
-    
+
     from whatsapp import WhatsAppPipeline
-    
+
     results_path = Path(results_file)
     processed_files = set()
-    
+
     # Load already processed files
     if results_path.exists():
         try:
@@ -48,13 +48,13 @@ async def monitor_whatsapp(
             logger.info(f"Loaded {len(processed_files)} previously processed files")
         except:
             pass
-    
+
     pipeline = WhatsAppPipeline(
         session_dir=session_dir,
         downloads_dir=downloads_dir,
         headless=False
     )
-    
+
     documents = []
     stats = {
         'status': 'connecting',
@@ -62,7 +62,7 @@ async def monitor_whatsapp(
         'last_check': None,
         'errors': 0
     }
-    
+
     def save_results():
         """Save current results to file."""
         results_path.write_text(json.dumps({
@@ -72,30 +72,30 @@ async def monitor_whatsapp(
             'count': len(documents),
             'timestamp': datetime.now().isoformat()
         }, ensure_ascii=False, indent=2), encoding='utf-8')
-    
+
     try:
         logger.info("Connecting to WhatsApp...")
         stats['status'] = 'connecting'
         save_results()
-        
+
         if not await pipeline.connect(timeout=timeout):
             logger.error("Failed to connect to WhatsApp")
             stats['status'] = 'error'
             stats['error'] = 'Failed to connect'
             save_results()
             return
-        
+
         logger.info("Connected! Starting monitoring...")
         stats['status'] = 'monitoring'
         save_results()
-        
+
         # Main monitoring loop
         while True:
             try:
                 stats['checks'] += 1
                 stats['last_check'] = datetime.now().isoformat()
                 logger.info(f"Check #{stats['checks']} - scanning {chat_limit} chats...")
-                
+
                 new_docs = 0
                 async for doc in pipeline.extract_documents(
                     chat_limit=chat_limit,
@@ -105,11 +105,11 @@ async def monitor_whatsapp(
                     # Skip already processed
                     if doc.file_path and doc.file_path in processed_files:
                         continue
-                    
+
                     new_docs += 1
                     if doc.file_path:
                         processed_files.add(doc.file_path)
-                    
+
                     documents.append({
                         'id': doc.id,
                         'filename': doc.filename,
@@ -121,38 +121,38 @@ async def monitor_whatsapp(
                         'received_at': doc.received_at.isoformat() if doc.received_at else None,
                         'found_at': datetime.now().isoformat()
                     })
-                    
+
                     logger.info(f"NEW: {doc.filename} from {doc.subject}")
-                
+
                 if new_docs > 0:
                     logger.info(f"Found {new_docs} new document(s)")
                 else:
                     logger.info("No new documents")
-                
+
                 save_results()
-                
+
             except Exception as e:
                 logger.error(f"Check error: {e}")
                 stats['errors'] += 1
                 stats['status'] = 'error'
                 stats['last_error'] = str(e)
                 save_results()
-            
+
             # Wait for next check
             logger.info(f"Waiting {check_interval}s until next check...")
             await asyncio.sleep(check_interval)
-    
+
     except KeyboardInterrupt:
         logger.info("Monitoring stopped by user")
         stats['status'] = 'stopped'
         save_results()
-    
+
     except Exception as e:
         logger.error(f"Monitor error: {e}")
         stats['status'] = 'error'
         stats['error'] = str(e)
         save_results()
-    
+
     finally:
         await pipeline.disconnect()
         logger.info("Monitor disconnected")
@@ -172,11 +172,11 @@ def main():
                        help='Session directory')
     parser.add_argument('--downloads', '-d', default='whatsapp_downloads',
                        help='Downloads directory')
-    
+
     args = parser.parse_args()
-    
+
     logger.info(f"Starting WhatsApp monitor: {args.chats} chats, {args.interval}s interval")
-    
+
     asyncio.run(monitor_whatsapp(
         session_dir=args.session,
         downloads_dir=args.downloads,

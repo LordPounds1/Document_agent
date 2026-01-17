@@ -11,7 +11,7 @@ class TestEmailAgent:
         """Проверка инициализации агента."""
         from agents.email_agent import EmailAgent
         agent = EmailAgent()
-        
+
         assert agent.imap is None
         assert agent.connected is False
         assert agent.email_address is None
@@ -20,7 +20,7 @@ class TestEmailAgent:
         """Проверка наличия провайдеров."""
         from agents.email_agent import EmailAgent
         agent = EmailAgent()
-        
+
         assert len(agent.PROVIDERS) > 0
         assert 'gmail.com' in agent.PROVIDERS
         assert 'yandex.ru' in agent.PROVIDERS
@@ -29,7 +29,7 @@ class TestEmailAgent:
         """Проверка определения Gmail."""
         from agents.email_agent import EmailAgent
         agent = EmailAgent()
-        
+
         settings = agent._detect_provider("test@gmail.com")
         assert settings['imap'] == 'imap.gmail.com'
 
@@ -37,7 +37,7 @@ class TestEmailAgent:
         """Проверка определения Yandex."""
         from agents.email_agent import EmailAgent
         agent = EmailAgent()
-        
+
         settings = agent._detect_provider("test@yandex.ru")
         assert settings['imap'] == 'imap.yandex.ru'
 
@@ -45,7 +45,7 @@ class TestEmailAgent:
         """Проверка определения Mail.ru."""
         from agents.email_agent import EmailAgent
         agent = EmailAgent()
-        
+
         settings = agent._detect_provider("test@mail.ru")
         assert settings['imap'] == 'imap.mail.ru'
 
@@ -53,7 +53,7 @@ class TestEmailAgent:
         """Проверка определения неизвестного провайдера."""
         from agents.email_agent import EmailAgent
         agent = EmailAgent()
-        
+
         settings = agent._detect_provider("test@custom-domain.com")
         assert settings['imap'] == 'imap.custom-domain.com'
         assert settings['port'] == 993
@@ -62,7 +62,7 @@ class TestEmailAgent:
         """Проверка декодирования простого заголовка."""
         from agents.email_agent import EmailAgent
         agent = EmailAgent()
-        
+
         result = agent._decode_header("Simple Subject")
         assert result == "Simple Subject"
 
@@ -70,7 +70,7 @@ class TestEmailAgent:
         """Проверка декодирования None."""
         from agents.email_agent import EmailAgent
         agent = EmailAgent()
-        
+
         result = agent._decode_header(None)
         assert result == ""
 
@@ -78,7 +78,7 @@ class TestEmailAgent:
         """Проверка отключения когда не подключен."""
         from agents.email_agent import EmailAgent
         agent = EmailAgent()
-        
+
         # Не должно вызывать ошибку
         agent.disconnect()
         assert agent.connected is False
@@ -87,7 +87,7 @@ class TestEmailAgent:
         """Проверка получения писем без подключения."""
         from agents.email_agent import EmailAgent
         agent = EmailAgent()
-        
+
         emails = agent.fetch_emails()
         assert emails == []
 
@@ -95,14 +95,14 @@ class TestEmailAgent:
     def test_connect_success(self, mock_imap):
         """Проверка успешного подключения."""
         from agents.email_agent import EmailAgent
-        
+
         # Настройка мока
         mock_instance = MagicMock()
         mock_imap.return_value = mock_instance
-        
+
         agent = EmailAgent()
         result = agent.connect("test@gmail.com", "password123")
-        
+
         assert result is True
         assert agent.connected is True
         mock_instance.login.assert_called_once_with("test@gmail.com", "password123")
@@ -111,13 +111,13 @@ class TestEmailAgent:
     def test_connect_failure(self, mock_imap):
         """Проверка неудачного подключения."""
         from agents.email_agent import EmailAgent
-        
+
         # Настройка мока для ошибки
         mock_imap.side_effect = Exception("Connection failed")
-        
+
         agent = EmailAgent()
         result = agent.connect("test@gmail.com", "wrong_password")
-        
+
         assert result is False
         assert agent.connected is False
 
@@ -125,12 +125,12 @@ class TestEmailAgent:
         """Проверка извлечения текста из TXT."""
         from agents.email_agent import EmailAgent
         agent = EmailAgent()
-        
+
         attachment = {
             'filename': 'test.txt',
             'content': b'Hello World'
         }
-        
+
         result = agent.get_attachment_text(attachment)
         assert result == 'Hello World'
 
@@ -138,12 +138,12 @@ class TestEmailAgent:
         """Проверка обработки пустого вложения."""
         from agents.email_agent import EmailAgent
         agent = EmailAgent()
-        
+
         attachment = {
             'filename': 'test.txt',
             'content': b''
         }
-        
+
         result = agent.get_attachment_text(attachment)
         assert result == ""
 
@@ -151,12 +151,12 @@ class TestEmailAgent:
         """Проверка обработки неподдерживаемого формата."""
         from agents.email_agent import EmailAgent
         agent = EmailAgent()
-        
+
         attachment = {
             'filename': 'test.jpg',
             'content': b'binary data'
         }
-        
+
         result = agent.get_attachment_text(attachment)
         assert result == ""
 
@@ -164,6 +164,6 @@ class TestEmailAgent:
         """Проверка пометки письма без подключения."""
         from agents.email_agent import EmailAgent
         agent = EmailAgent()
-        
+
         # Не должно вызывать ошибку
         agent.mark_as_read("123")

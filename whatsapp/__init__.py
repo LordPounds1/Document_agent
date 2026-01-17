@@ -6,7 +6,7 @@ from chats. It uses Playwright for browser automation.
 Components:
 - WhatsAppClient: Browser launch and QR auth
 - ChatIterator: Navigate through all chats
-- MessageScanner: Find documents in chat history  
+- MessageScanner: Find documents in chat history
 - DocumentDownloader: Download PDF/DOCX files
 - WhatsAppPipeline: Integration with document pipeline
 - WhatsAppMonitor: Background monitoring for new documents

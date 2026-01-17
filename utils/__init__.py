@@ -24,7 +24,7 @@ from utils.auth import (
 __all__ = [
     # Security
     'validate_email',
-    'validate_password', 
+    'validate_password',
     'sanitize_html',
     'sanitize_filename',
     'mask_sensitive_data',

@@ -19,7 +19,6 @@ import threading
 import time
 from datetime import datetime
 from pathlib import Path
-from typing import Optional
 
 import pandas as pd
 import streamlit as st

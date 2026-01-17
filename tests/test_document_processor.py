@@ -25,7 +25,7 @@ class TestDocumentProcessor:
             model_path="fake_model.gguf",
             templates_dir="templates"
         )
-        
+
         is_contract, confidence = processor.is_contract(sample_contract_text)
         assert is_contract is True
 
@@ -36,7 +36,7 @@ class TestDocumentProcessor:
             model_path="fake_model.gguf",
             templates_dir="templates"
         )
-        
+
         is_contract, confidence = processor.is_contract(sample_non_contract_text)
         assert is_contract is False
 
@@ -47,10 +47,10 @@ class TestDocumentProcessor:
             model_path="fake_model.gguf",
             templates_dir="templates"
         )
-        
+
         text = "Договор аренды помещения между сторонами"
         result = processor._extract_basic_info(text)
-        
+
         assert result['document_type'] == 'Договор аренды'
 
     def test_extract_basic_info_contract_type_postavka(self):
@@ -60,10 +60,10 @@ class TestDocumentProcessor:
             model_path="fake_model.gguf",
             templates_dir="templates"
         )
-        
+
         text = "Договор поставки товаров между сторонами"
         result = processor._extract_basic_info(text)
-        
+
         assert result['document_type'] == 'Договор поставки'
 
     def test_extract_basic_info_contract_type_uslugi(self):
@@ -73,10 +73,10 @@ class TestDocumentProcessor:
             model_path="fake_model.gguf",
             templates_dir="templates"
         )
-        
+
         text = "Договор оказания услуг между сторонами"
         result = processor._extract_basic_info(text)
-        
+
         assert result['document_type'] == 'Договор оказания услуг'
 
     def test_extract_basic_info_finds_amount(self):
@@ -86,10 +86,10 @@ class TestDocumentProcessor:
             model_path="fake_model.gguf",
             templates_dir="templates"
         )
-        
+
         text = "Стоимость составляет 500000 тенге"
         result = processor._extract_basic_info(text)
-        
+
         assert 'тенге' in result['amount'].lower() or '500000' in result['amount']
 
     def test_extract_basic_info_finds_date(self):
@@ -99,10 +99,10 @@ class TestDocumentProcessor:
             model_path="fake_model.gguf",
             templates_dir="templates"
         )
-        
+
         text = "Договор от 01.01.2026 между сторонами"
         result = processor._extract_basic_info(text)
-        
+
         assert result['date'] == '01.01.2026'
 
     def test_extract_basic_info_has_processed_at(self):
@@ -112,7 +112,7 @@ class TestDocumentProcessor:
             model_path="fake_model.gguf",
             templates_dir="templates"
         )
-        
+
         result = processor._extract_basic_info("Test text")
         assert 'processed_at' in result
         assert result['processed_at'] is not None
@@ -124,12 +124,12 @@ class TestDocumentProcessor:
             model_path="fake_model.gguf",
             templates_dir="templates"
         )
-        
+
         result = processor.process_email_with_contract(
             mock_email_data,
             sample_contract_text
         )
-        
+
         assert 'email_id' in result
         assert 'email_from' in result
         assert 'document_type' in result
@@ -143,7 +143,7 @@ class TestDocumentProcessor:
             model_path="fake_model.gguf",
             templates_dir="templates"
         )
-        
+
         # Не должно вызывать ошибку
         processor.close()
         assert processor.llm is None

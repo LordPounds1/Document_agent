@@ -19,33 +19,33 @@ def main():
     else:
         # Запуск из Python
         app_dir = Path(__file__).parent
-    
+
     os.chdir(app_dir)
-    
+
     # Путь к streamlit приложению
     app_path = app_dir / "app_streamlit.py"
-    
+
     if not app_path.exists():
         print(f"❌ Файл {app_path} не найден!")
         input("Нажмите Enter для выхода...")
         return
-    
+
     print("=" * 50)
     print("📄 Document Processing Agent")
     print("=" * 50)
     print()
     print("🚀 Запуск приложения...")
     print()
-    
+
     # Запускаем Streamlit
     port = 8501
-    
+
     # Формируем команду
     if getattr(sys, 'frozen', False):
         # Для exe используем системный Python
         cmd = [
             sys.executable.replace('launcher.exe', 'python.exe'),
-            "-m", "streamlit", "run", 
+            "-m", "streamlit", "run",
             str(app_path),
             "--server.port", str(port),
             "--server.headless", "true"
@@ -59,15 +59,15 @@ def main():
             cmd = ["streamlit", "run", str(app_path), "--server.port", str(port), "--server.headless", "true"]
     else:
         cmd = [
-            sys.executable, "-m", "streamlit", "run", 
+            sys.executable, "-m", "streamlit", "run",
             str(app_path),
             "--server.port", str(port),
             "--server.headless", "true"
         ]
-    
+
     print(f"📍 Команда: {' '.join(cmd)}")
     print()
-    
+
     try:
         # Запускаем процесс
         process = subprocess.Popen(
@@ -78,16 +78,16 @@ def main():
             bufsize=1,
             cwd=str(app_dir)
         )
-        
+
         # Ждём запуска
         print("⏳ Ожидание запуска сервера...")
         time.sleep(3)
-        
+
         # Открываем браузер
         url = f"http://localhost:{port}"
         print(f"🌐 Открытие браузера: {url}")
         webbrowser.open(url)
-        
+
         print()
         print("=" * 50)
         print("✅ Приложение запущено!")
@@ -96,13 +96,13 @@ def main():
         print("Для остановки нажмите Ctrl+C или закройте это окно")
         print("=" * 50)
         print()
-        
+
         # Читаем вывод
         for line in process.stdout:
             print(line, end='')
-        
+
         process.wait()
-        
+
     except KeyboardInterrupt:
         print("\n🛑 Остановка приложения...")
         process.terminate()

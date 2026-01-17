@@ -31,22 +31,22 @@ app.conf.update(
     task_serializer='json',
     accept_content=['json'],
     result_serializer='json',
-    
+
     # Таймзона
     timezone='UTC',
     enable_utc=True,
-    
+
     # Retry policy
     task_acks_late=True,
     task_reject_on_worker_lost=True,
-    
+
     # Результаты хранятся 24 часа
     result_expires=86400,
-    
+
     # Ограничения
     task_soft_time_limit=300,  # 5 минут soft limit
     task_time_limit=600,  # 10 минут hard limit
-    
+
     # Worker
     worker_prefetch_multiplier=1,
     worker_concurrency=2,  # 2 параллельных задачи (LLM ограничение)

@@ -53,7 +53,7 @@ class TestSimpleRAG:
         """Проверка расширения запроса синонимами."""
         from core.rag import SimpleRAG
         rag = SimpleRAG(templates_dir=str(temp_templates_dir))
-        
+
         expanded = rag.expand_query("договор аренды")
         assert "контракт" in expanded or "соглашение" in expanded
 
@@ -61,7 +61,7 @@ class TestSimpleRAG:
         """Проверка запроса без синонимов."""
         from core.rag import SimpleRAG
         rag = SimpleRAG(templates_dir=str(temp_templates_dir))
-        
+
         original = "привет мир"
         expanded = rag.expand_query(original)
         assert expanded == original
@@ -70,7 +70,7 @@ class TestSimpleRAG:
         """Проверка нормализации текста."""
         from core.rag import SimpleRAG
         rag = SimpleRAG(templates_dir=str(temp_templates_dir))
-        
+
         text = "  Привет   МИРА!  "
         normalized = rag.normalize_text(text)
         assert normalized == "привет мира"
@@ -79,7 +79,7 @@ class TestSimpleRAG:
         """Проверка определения договора (положительный случай)."""
         from core.rag import SimpleRAG
         rag = SimpleRAG(templates_dir=str(temp_templates_dir))
-        
+
         is_contract, confidence = rag.is_contract(sample_contract_text)
         assert is_contract is True
         assert confidence > 0.4
@@ -88,7 +88,7 @@ class TestSimpleRAG:
         """Проверка определения договора (отрицательный случай)."""
         from core.rag import SimpleRAG
         rag = SimpleRAG(templates_dir=str(temp_templates_dir))
-        
+
         is_contract, confidence = rag.is_contract(sample_non_contract_text)
         assert is_contract is False
         assert confidence < 0.4
@@ -97,7 +97,7 @@ class TestSimpleRAG:
         """Проверка получения статистики."""
         from core.rag import SimpleRAG
         rag = SimpleRAG(templates_dir=str(temp_templates_dir))
-        
+
         stats = rag.get_stats()
         assert 'total_templates' in stats
         assert 'synonyms_count' in stats
@@ -109,7 +109,7 @@ class TestSimpleRAG:
         from core.rag import SimpleRAG
         rag = SimpleRAG(templates_dir=str(temp_templates_dir))
         rag.clear_index()  # Очищаем индекс для чистого теста
-        
+
         results = rag.retrieve("договор аренды", k=5)
         assert results == []
 
@@ -118,7 +118,7 @@ class TestSimpleRAG:
         from core.rag import SimpleRAG
         rag = SimpleRAG(templates_dir=str(temp_templates_dir))
         rag.clear_index()  # Очищаем индекс для чистого теста
-        
+
         results = rag.search("договор аренды", k=5)
         assert results == []
 
@@ -126,13 +126,13 @@ class TestSimpleRAG:
         """Проверка фильтрации по релевантности."""
         from core.rag import SimpleRAG, Document
         rag = SimpleRAG(templates_dir=str(temp_templates_dir))
-        
+
         docs = [
             Document(content="doc1", metadata={}, score=0.8),
             Document(content="doc2", metadata={}, score=0.05),
             Document(content="doc3", metadata={}, score=0.3),
         ]
-        
+
         filtered = rag.filter_relevant(docs, min_score=0.1)
         assert len(filtered) == 2
         assert all(d.score >= 0.1 for d in filtered)
@@ -141,10 +141,10 @@ class TestSimpleRAG:
         """Проверка добавления документа."""
         from core.rag import SimpleRAG
         rag = SimpleRAG(templates_dir=str(temp_templates_dir))
-        
+
         initial_count = len(rag.documents)
         result = rag.add_document("Test content", {'type': 'test'})
-        
+
         assert result is True
         assert len(rag.documents) == initial_count + 1
 
@@ -152,6 +152,6 @@ class TestSimpleRAG:
         """Проверка добавления пустого документа."""
         from core.rag import SimpleRAG
         rag = SimpleRAG(templates_dir=str(temp_templates_dir))
-        
+
         result = rag.add_document("", {'type': 'test'})
         assert result is False

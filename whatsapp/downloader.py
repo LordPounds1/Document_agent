@@ -23,31 +23,31 @@ except ImportError:
 
 class DocumentDownloader:
     """Downloads documents from WhatsApp messages.
-    
+
     Handles:
     - Clicking download buttons
     - Waiting for download completion
     - Saving files to specified directory
     - Sanitizing filenames
-    
+
     Example:
         ```python
         downloader = DocumentDownloader(page, downloads_dir='./downloads')
-        
+
         for message in document_messages:
             path = await downloader.download(message)
             if path:
                 print(f'Downloaded: {path}')
         ```
     """
-    
+
     SELECTORS = {
         'document_thumb': '[data-testid="document-thumb"]',
         'download_button': '[data-testid="media-download"], [data-testid="download"]',
         'document_preview': '[data-testid="media-viewer"]',
         'close_preview': '[data-testid="media-viewer-close"]',
     }
-    
+
     def __init__(
         self,
         page: Page,
@@ -55,7 +55,7 @@ class DocumentDownloader:
         timeout: int = 30000
     ):
         """Initialize downloader.
-        
+
         Args:
             page: Playwright page.
             downloads_dir: Directory to save downloaded files.
@@ -64,23 +64,23 @@ class DocumentDownloader:
         self.page = page
         self.downloads_dir = Path(downloads_dir).absolute()
         self.timeout = timeout
-        
+
         # Create directory
         self.downloads_dir.mkdir(parents=True, exist_ok=True)
-    
-    async def download(self, message: MessageInfo) -> Optional[str]:
+
+    async def download(self, message: MessageInfo) -> str | None:
         """Download document from message.
-        
+
         Args:
             message: MessageInfo with document element or document_name.
-            
+
         Returns:
             Path to downloaded file or None if failed.
         """
         if not message.has_document:
             logger.warning('Message has no document')
             return None
-        
+
         try:
             # If we have document_element, use it directly
             if message.document_element:
@@ -92,102 +92,102 @@ class DocumentDownloader:
                 if not doc_name:
                     logger.warning('No document name to search for')
                     return None
-                
+
                 logger.debug(f'Searching for document by name: {doc_name}')
-                
+
                 # Try to find and click the document element by text
                 clicked = await self._find_and_click_document(doc_name)
                 if not clicked:
                     logger.warning(f'Could not find document element for: {doc_name}')
                     return None
-                
+
                 await asyncio.sleep(0.5)
-            
+
             # Find download button
             download_btn = await self.page.query_selector(self.SELECTORS['download_button'])
-            
+
             if not download_btn and message.document_element:
                 # Try within the document element
                 download_btn = await message.document_element.query_selector(
                     self.SELECTORS['download_button']
                 )
-            
+
             if not download_btn:
                 # Try clicking on the document name span directly - might trigger download
                 logger.debug('No download button, trying direct click on document')
                 return await self._download_via_click(message.document_name)
-            
+
             # Start download
             async with self.page.expect_download(timeout=self.timeout) as download_info:
                 await download_btn.click()
-            
+
             download = await download_info.value
-            
+
             # Get safe filename
             filename = self._sanitize_filename(
                 message.document_name or download.suggested_filename
             )
-            
+
             # Save file
             save_path = self.downloads_dir / filename
             await download.save_as(str(save_path))
-            
+
             logger.info(f'Downloaded: {filename}')
-            
+
             # Close preview if open
             await self._close_preview()
-            
+
             return str(save_path)
-            
+
         except Exception as e:
             logger.error(f'Download failed: {e}')
             await self._close_preview()
             return None
-    
+
     async def download_all(
         self,
-        messages: List[MessageInfo]
-    ) -> List[Tuple[MessageInfo, str]]:
+        messages: list[MessageInfo]
+    ) -> list[tuple[MessageInfo, str]]:
         """Download documents from multiple messages.
-        
+
         Args:
             messages: List of messages with documents.
-            
+
         Returns:
             List of (message, file_path) tuples for successful downloads.
         """
         results = []
-        
+
         for msg in messages:
             if msg.has_document:
                 path = await self.download(msg)
                 if path:
                     results.append((msg, path))
                 await asyncio.sleep(0.5)  # Rate limiting
-        
+
         logger.info(f'Downloaded {len(results)} of {len(messages)} documents')
         return results
-    
+
     def _sanitize_filename(self, filename: str) -> str:
         """Make filename safe for filesystem.
-        
+
         Args:
             filename: Original filename.
-            
+
         Returns:
             Sanitized filename.
         """
         if not filename:
             return f'document_{asyncio.get_event_loop().time():.0f}'
-        
+
         # Remove path components
         filename = Path(filename).name
-        
+
         # Remove dangerous characters
         dangerous = ['..', '/', '\\', '\x00', ':', '*', '?', '"', '<', '>', '|']
         for char in dangerous:
             filename = filename.replace(char, '_')
-        
+
         # Limit length
         if len(filename) > 200:
             name_parts = filename.rsplit('.', 1)
@@ -196,9 +196,9 @@ class DocumentDownloader:
                 filename = name[:190] + '.' + ext
             else:
                 filename = filename[:200]
-        
+
         return filename or 'unnamed_document'
-    
+
     async def _close_preview(self) -> None:
         """Close document preview if open."""
         try:
@@ -212,13 +212,13 @@ class DocumentDownloader:
                 await self.page.keyboard.press('Escape')
             except Exception:
                 pass
-    
+
     async def _find_and_click_document(self, doc_name: str) -> bool:
         """Find document by name and click on it.
-        
+
         Args:
             doc_name: Document filename to search for.
-            
+
         Returns:
             True if found and clicked.
         """
@@ -228,19 +228,19 @@ class DocumentDownloader:
             if await locator.count() > 0:
                 await locator.first.click()
                 return True
-            
+
             # Try partial match
             locator = self.page.locator('#main').get_by_text(doc_name, exact=False)
             if await locator.count() > 0:
                 await locator.first.click()
                 return True
-            
+
             # Try finding via JavaScript and clicking
             clicked = await self.page.evaluate(r'''
                 (docName) => {
                     const main = document.querySelector('#main');
                     if (!main) return false;
-                    
+
                     // Find span containing the document name
                     const spans = main.querySelectorAll('span');
                     for (const span of spans) {
@@ -250,7 +250,7 @@ class DocumentDownloader:
                             for (let i = 0; i < 10; i++) {
                                 el = el.parentElement;
                                 if (!el) break;
-                                
+
                                 // Check if this looks like a document container
                                 if (el.getAttribute('role') === 'button' ||
                                     el.getAttribute('data-testid')?.includes('document') ||
@@ -267,21 +267,21 @@ class DocumentDownloader:
                     return false;
                 }
             ''', doc_name)
-            
+
             return clicked
-            
+
         except Exception as e:
             logger.debug(f'Find and click document failed: {e}')
             return False
-    
-    async def _download_via_click(self, doc_name: str) -> Optional[str]:
+
+    async def _download_via_click(self, doc_name: str) -> str | None:
         """Try to download by clicking on document name.
-        
+
         Some WhatsApp versions allow direct download by clicking on document.
-        
+
         Args:
             doc_name: Document filename.
-            
+
         Returns:
             Path to downloaded file or None.
         """
@@ -290,39 +290,39 @@ class DocumentDownloader:
             locator = self.page.locator('#main').get_by_text(doc_name, exact=False)
             if await locator.count() == 0:
                 return None
-            
+
             # Try to initiate download by clicking
             try:
                 async with self.page.expect_download(timeout=5000) as download_info:
                     await locator.first.click()
-                
+
                 download = await download_info.value
                 filename = self._sanitize_filename(doc_name or download.suggested_filename)
                 save_path = self.downloads_dir / filename
                 await download.save_as(str(save_path))
-                
+
                 logger.info(f'Downloaded via click: {filename}')
                 return str(save_path)
-                
+
             except Exception:
                 # Download didn't start from click - might need to find download button
                 pass
-            
+
             # Look for download icon near the document
             download_btn = self.page.locator('#main [data-testid*="download"]')
             if await download_btn.count() > 0:
                 async with self.page.expect_download(timeout=self.timeout) as download_info:
                     await download_btn.first.click()
-                
+
                 download = await download_info.value
                 filename = self._sanitize_filename(doc_name or download.suggested_filename)
                 save_path = self.downloads_dir / filename
                 await download.save_as(str(save_path))
-                
+
                 logger.info(f'Downloaded via button: {filename}')
                 return str(save_path)
-            
+
         except Exception as e:
             logger.debug(f'Download via click failed: {e}')
-        
+
         return None

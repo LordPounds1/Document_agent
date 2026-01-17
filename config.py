@@ -13,14 +13,14 @@ logger = logging.getLogger(__name__)
 
 class Config:
     """Конфигурация приложения"""
-    
+
     # Пути
     BASE_DIR = Path(__file__).parent
     MODELS_DIR = BASE_DIR / "models"
     TEMPLATES_DIR = BASE_DIR / "templates"
     DATA_DIR = BASE_DIR / "data"
     LOGS_DIR = BASE_DIR / "logs"
-    
+
     # LLM настройки
     MODEL_PATH = os.getenv("MODEL_PATH")
     if not MODEL_PATH or MODEL_PATH.lower() == "none":
@@ -31,25 +31,25 @@ class Config:
             logger.info(f"Найдена модель: {MODEL_PATH}")
         else:
             MODEL_PATH = None
-    
+
     MODEL_CONTEXT_SIZE = int(os.getenv("MODEL_CONTEXT_SIZE", 2048))
     MODEL_TEMPERATURE = float(os.getenv("MODEL_TEMPERATURE", 0.1))
     MODEL_N_GPU_LAYERS = int(os.getenv("MODEL_N_GPU_LAYERS", -1))  # -1 = все слои на GPU
     MODEL_MAX_TOKENS = int(os.getenv("MODEL_MAX_TOKENS", 512))
-    
+
     # Excel
     EXCEL_FILE_PATH = os.getenv("EXCEL_FILE_PATH", str(DATA_DIR / "processed_documents.xlsx"))
-    
+
     # Агент
     CHECK_INTERVAL_MINUTES = int(os.getenv("CHECK_INTERVAL_MINUTES", 5))
     LOG_LEVEL = os.getenv("LOG_LEVEL", "INFO")
-    
+
     # RAG и обучение
     RAG_ENABLE_LEARNING = os.getenv("RAG_ENABLE_LEARNING", "true").lower() == "true"
     RAG_PERSIST_DIR = os.getenv("RAG_PERSIST_DIR", str(BASE_DIR / ".chroma_db"))
     RAG_MIN_DOCUMENT_LENGTH = int(os.getenv("RAG_MIN_DOCUMENT_LENGTH", 100))
     RAG_USE_GPU = os.getenv("RAG_USE_GPU", "false").lower() == "true"
-    
+
     # Почтовые провайдеры
     EMAIL_PROVIDERS = {
         'gmail.com': {'imap': 'imap.gmail.com', 'port': 993},
@@ -65,36 +65,36 @@ class Config:
         'outlook.com': {'imap': 'outlook.office365.com', 'port': 993},
         'hotmail.com': {'imap': 'outlook.office365.com', 'port': 993},
     }
-    
+
     @classmethod
     def get_model_path(cls) -> str:
         """Получение пути к модели"""
         if cls.MODEL_PATH:
             return cls.MODEL_PATH
-        
+
         # Поиск в папке models
         if cls.MODELS_DIR.exists():
             model_files = list(cls.MODELS_DIR.glob("*.gguf"))
             if model_files:
                 return str(model_files[0])
-        
+
         return None
-    
+
     @classmethod
     def get_email_server(cls, email_address: str) -> dict:
         """Получение настроек IMAP сервера по email"""
         if not email_address or '@' not in email_address:
             return {'imap': 'imap.gmail.com', 'port': 993}
-        
+
         domain = email_address.split('@')[-1].lower()
-        
+
         if domain in cls.EMAIL_PROVIDERS:
             return cls.EMAIL_PROVIDERS[domain]
-        
+
         # Для Яндекса с разными доменами
         if 'yandex' in domain:
             return {'imap': 'imap.yandex.ru', 'port': 993}
-        
+
         # По умолчанию пробуем imap.domain
         return {'imap': f'imap.{domain}', 'port': 993}
 

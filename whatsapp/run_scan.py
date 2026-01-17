@@ -33,30 +33,30 @@ async def scan_whatsapp(
     timeout: int = 120
 ) -> list:
     """Scan WhatsApp for documents using the working async pipeline."""
-    
+
     from whatsapp import WhatsAppPipeline
-    
+
     pipeline = WhatsAppPipeline(
         session_dir=session_dir,
         downloads_dir=downloads_dir,
         headless=False
     )
-    
+
     documents = []
-    
+
     try:
         logger.info("Connecting to WhatsApp...")
-        
+
         if not await pipeline.connect(timeout=timeout):
             logger.error("Failed to connect to WhatsApp")
             return []
-        
+
         logger.info("Connected! Scanning for documents...")
-        
+
         # Set progress callback
         pipeline.on_chat_processed = lambda name, count: logger.info(f"Chat: {name} - {count} docs")
         pipeline.on_document_found = lambda msg: logger.info(f"Found: {msg.document_name}")
-        
+
         doc_count = 0
         async for doc in pipeline.extract_documents(
             chat_limit=chat_limit,
@@ -66,7 +66,7 @@ async def scan_whatsapp(
             doc_count += 1
             if doc_count > doc_limit:
                 break
-            
+
             documents.append({
                 'id': doc.id,
                 'filename': doc.filename,
@@ -78,25 +78,25 @@ async def scan_whatsapp(
                 'received_at': doc.received_at.isoformat() if doc.received_at else None,
                 'metadata': doc.metadata
             })
-            
+
             logger.info(f"[{doc_count}] {doc.filename} from {doc.subject}")
-        
+
         logger.info(f"Scan complete: {len(documents)} documents found")
-        
+
     except Exception as e:
         logger.error(f"Error during scan: {e}")
         import traceback
         traceback.print_exc()
-    
+
     finally:
         await pipeline.disconnect()
-    
+
     return documents
 
 
 def main():
     parser = argparse.ArgumentParser(description='Scan WhatsApp for documents')
-    parser.add_argument('--output', '-o', default='whatsapp_scan_results.json', 
+    parser.add_argument('--output', '-o', default='whatsapp_scan_results.json',
                        help='Output JSON file')
     parser.add_argument('--chats', '-c', type=int, default=10,
                        help='Number of chats to scan')
@@ -108,11 +108,11 @@ def main():
                        help='Session directory')
     parser.add_argument('--downloads', default='whatsapp_downloads',
                        help='Downloads directory')
-    
+
     args = parser.parse_args()
-    
+
     logger.info(f"Starting WhatsApp scan: {args.chats} chats, max {args.docs} docs")
-    
+
     # Run async scan
     documents = asyncio.run(scan_whatsapp(
         session_dir=args.session,
@@ -121,7 +121,7 @@ def main():
         doc_limit=args.docs,
         timeout=args.timeout
     ))
-    
+
     # Save results
     output_path = Path(args.output)
     result = {
@@ -130,10 +130,10 @@ def main():
         'documents': documents,
         'count': len(documents)
     }
-    
+
     output_path.write_text(json.dumps(result, ensure_ascii=False, indent=2), encoding='utf-8')
     logger.info(f"Results saved to {output_path}")
-    
+
     return len(documents)
 
 
