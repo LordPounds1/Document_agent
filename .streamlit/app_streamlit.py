@@ -11,6 +11,7 @@
 5. Мониторинг новых писем
 """
 
+import importlib.util
 import io
 import logging
 import sys
@@ -104,8 +105,7 @@ from core.rag import SimpleRAG  # noqa: E402
 from processors.document import DocumentProcessor  # noqa: E402
 
 # Импорт WhatsApp Playwright модуля
-try:
-    import playwright  # noqa: E402
+if importlib.util.find_spec('playwright') is not None:
     from whatsapp.monitor import (  # noqa: E402
         WhatsAppMonitor,
         create_monitor,
@@ -113,7 +113,7 @@ try:
         stop_monitor,
     )
     PLAYWRIGHT_AVAILABLE = True
-except ImportError:
+else:
     PLAYWRIGHT_AVAILABLE = False
     WhatsAppMonitor = None
 
@@ -246,36 +246,36 @@ def connect_email(email_address: str, password: str) -> bool:
 
 def process_emails(scan_all: bool = True, progress_placeholder=None) -> list:
     """Обработка писем и поиск договоров
-    
+
     Args:
         scan_all: True = проверить все письма, False = только непрочитанные
         progress_placeholder: Streamlit placeholder для отображения прогресса
     """
     if not st.session_state.connected:
         return []
-    
+
     init_document_processor()
     init_rag()
-    
+
     # Получаем письма (все или только непрочитанные)
     if progress_placeholder:
         progress_placeholder.info("📥 Получение списка писем...")
-    
+
     emails = st.session_state.email_agent.fetch_emails(
         unread_only=not scan_all,  # Если scan_all=True, то unread_only=False
         limit=100  # Увеличиваем лимит для полного сканирования
     )
-    
+
     if progress_placeholder:
         progress_placeholder.info(f"📧 Найдено {len(emails)} писем. Начинаю анализ...")
-    
+
     found_contracts = []
     skipped = 0
-    
+
     # Progress bar
     if progress_placeholder and emails:
         progress_bar = progress_placeholder.progress(0, text="Анализ писем...")
-    
+
     for idx, email_data in enumerate(emails):
         # Обновляем прогресс
         if progress_placeholder and emails:
