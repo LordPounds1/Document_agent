@@ -7,12 +7,12 @@ Outputs results to JSON file.
 Usage: python -m whatsapp.run_scan --output results.json --chats 10 --docs 50
 """
 
-from datetime import datetime
-from pathlib import Path
 import argparse
 import asyncio
 import json
 import logging
+from datetime import datetime
+from pathlib import Path
 import sys
 # Add parent to path
 sys.path.insert(0, str(Path(__file__).parent.parent))

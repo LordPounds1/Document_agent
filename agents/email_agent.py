@@ -1,13 +1,13 @@
 """Упрощённый агент для работы с почтой."""
 
-from datetime import datetime
-from email.header import decode_header
 import contextlib
 import email
 import imaplib
 import io
 import logging
 import socket
+from datetime import datetime
+from email.header import decode_header
 # Security: никогда не логируем пароли
 logger = logging.getLogger(__name__)
 

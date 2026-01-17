@@ -1,8 +1,8 @@
 """Конфигурация приложения Document Processing Agent."""
 
-from pathlib import Path
 import logging
 import os
+from pathlib import Path
 
 from dotenv import load_dotenv
 load_dotenv()

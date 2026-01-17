@@ -2,13 +2,15 @@
 Тесты для модуля retry и circuit breaker.
 """
 
-from utils.retry import (
-import pytest
 import time
-    retry,
-    RetryExhausted,
+
+import pytest
+
+from utils.retry import (
     CircuitBreaker,
     CircuitOpenError,
+    RetryExhausted,
+    retry,
 )
 
 

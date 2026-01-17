@@ -3,10 +3,10 @@
 Iterates through all chats in the sidebar and provides navigation.
 """
 
-from collections.abc import AsyncIterator
-from dataclasses import dataclass
 import asyncio
 import logging
+from collections.abc import AsyncIterator
+from dataclasses import dataclass
 logger = logging.getLogger(__name__)
 
 try:
@@ -347,10 +347,10 @@ class ChatIterator:
             async for chat in self.iter_chats(scroll_count=5):
                 if chat.name.lower() == chat_name.lower() and chat.element:
                     await chat.element.click()
-                        await asyncio.sleep(1)
-                        has_main = await self.page.evaluate('() => !!document.querySelector("#main")')
-                        if has_main:
-                            return True
+                    await asyncio.sleep(1)
+                    has_main = await self.page.evaluate('() => !!document.querySelector("#main")')
+                    if has_main:
+                        return True
 
             logger.warning(f'Chat not found or could not open: {chat_name}')
             return False

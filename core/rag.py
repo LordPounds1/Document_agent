@@ -5,20 +5,20 @@
 Включает систему непрерывного обучения на новых договорах.
 """
 
-from dataclasses import dataclass, field
-from datetime import datetime
-from pathlib import Path
-from typing import Any
 import hashlib
 import json
 import logging
 import re
+from dataclasses import dataclass, field
+from datetime import datetime
+from pathlib import Path
+from typing import Any
 logger = logging.getLogger(__name__)
 
 # Опциональные зависимости для векторного поиска
 try:
-    from chromadb.config import Settings
     import chromadb
+    from chromadb.config import Settings
     CHROMADB_AVAILABLE = True
 except ImportError:
     CHROMADB_AVAILABLE = False
@@ -463,7 +463,7 @@ class SimpleRAG:
         # Удаляем из ChromaDB
         if self.use_vector_search and self.collection:
             try:
-                # Безопасно: hash() используется для создания ID, не SQL injection
+                # Безопасно: hash() используется для создания ID документа, не SQL injection
                 doc_id = f"doc_{hash(document_hash)}"  # noqa: S608
                 self.collection.delete(ids=[doc_id])
             except Exception as e:
@@ -545,7 +545,7 @@ class SimpleRAG:
         try:
             if not self.embedder or not self.collection:
                 logger.warning("Vector search not available, falling back to keyword search")
-                return self._keyword_search(query, limit)
+                return self._keyword_retrieve(query, k)
 
             # Pre-Retrieval: расширяем запрос
             expanded_query = self.expand_query(query)

@@ -16,7 +16,13 @@ from whatsapp.chat_iterator import ChatIterator
 from whatsapp.client import WhatsAppClient
 from whatsapp.downloader import DocumentDownloader
 from whatsapp.message_scanner import MessageScanner
-from whatsapp.monitor import WhatsAppMonitor, get_monitor, create_monitor, stop_monitor
+from whatsapp.monitor import (
+    WhatsAppMonitor,
+    create_monitor,
+    get_monitor,
+    stop_monitor,
+)
+
 __all__ = [
     'WhatsAppClient',
     'ChatIterator',

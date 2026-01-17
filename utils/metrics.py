@@ -8,6 +8,9 @@
 - Экспорт метрик
 """
 
+import json
+import logging
+import time
 from contextlib import contextmanager
 from dataclasses import dataclass, field
 from datetime import datetime
@@ -15,9 +18,6 @@ from functools import wraps
 from pathlib import Path
 from threading import Lock
 from typing import Any
-import json
-import logging
-import time
 logger = logging.getLogger(__name__)
 
 

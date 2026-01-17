@@ -1,9 +1,9 @@
 """Упрощённый процессор документов с LLM."""
 
-from datetime import datetime
-from typing import Any
 import logging
 import re
+from datetime import datetime
+from typing import Any
 
 from config import Config
 from core.llm import LLMClient

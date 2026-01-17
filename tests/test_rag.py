@@ -120,7 +120,7 @@ class TestSimpleRAG:
 
     def test_filter_relevant(self, temp_templates_dir):
         """Проверка фильтрации по релевантности."""
-        from core.rag import SimpleRAG, Document
+        from core.rag import Document, SimpleRAG
         rag = SimpleRAG(templates_dir=str(temp_templates_dir))
 
         docs = [

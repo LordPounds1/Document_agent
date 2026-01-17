@@ -3,14 +3,20 @@
 Handles browser launch, session persistence, and QR code authentication.
 """
 
-from pathlib import Path
 import logging
+from pathlib import Path
+
 logger = logging.getLogger(__name__)
 
 # Check Playwright availability
 PLAYWRIGHT_AVAILABLE = False
 try:
-    from playwright.async_api import async_playwright, Browser, BrowserContext, Page
+    from playwright.async_api import (
+        Browser,
+        BrowserContext,
+        Page,
+        async_playwright,
+    )
     PLAYWRIGHT_AVAILABLE = True
 except ImportError:
     logger.warning('Playwright not installed. Run: pip install playwright && playwright install chromium')

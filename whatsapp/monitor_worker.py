@@ -4,14 +4,14 @@ WhatsApp Monitor Worker - runs in separate subprocess.
 Monitors WhatsApp for new documents and saves results to JSON file.
 """
 
-from datetime import datetime
-from pathlib import Path
-from typing import Any
 import argparse
 import asyncio
 import json
 import logging
 import sys
+from datetime import datetime
+from pathlib import Path
+from typing import Any
 # Add parent to path
 sys.path.insert(0, str(Path(__file__).parent.parent))
 

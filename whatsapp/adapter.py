@@ -3,11 +3,11 @@
 Integrates WhatsApp document extraction with the existing document processor.
 """
 
+import asyncio
+import logging
 from collections.abc import AsyncIterator, Callable
 from datetime import datetime
 from pathlib import Path
-import asyncio
-import logging
 
 from sources.base import Document, DocumentType, InputSource
 from whatsapp.chat_iterator import ChatIterator

@@ -5,14 +5,13 @@
 Пароли хранятся в виде хэшей (bcrypt/hashlib).
 """
 
-from pathlib import Path
 import hashlib
 import hmac
 import logging
 import os
 import secrets
 import time
-# Типы не используются, удалены
+from pathlib import Path
 
 import streamlit as st
 logger = logging.getLogger(__name__)

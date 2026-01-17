@@ -2,6 +2,8 @@
 
 from datetime import datetime
 from pathlib import Path
+
+import pytest
 from unittest.mock import MagicMock, Mock, patch
 class TestWhatsAppRealtimeAgent:
     """Тесты для WhatsAppRealTimeAgent с проверкой исправлений."""
@@ -242,7 +244,6 @@ class TestStreamlitIntegration:
     def test_callback_error_handling(self):
         """Проверка обработки ошибок в callback функции."""
         from agents.whatsapp_realtime import WhatsAppMessage, WhatsAppRealTimeAgent
-        from datetime import datetime
         agent = WhatsAppRealTimeAgent()
         error_caught = []
 

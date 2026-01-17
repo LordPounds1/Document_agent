@@ -1,10 +1,10 @@
 """Simplified LLM Client - обёртка над llama-cpp-python."""
 
-from threading import Semaphore
-from typing import Any
 import json
 import logging
 import re
+from threading import Semaphore
+from typing import Any
 logger = logging.getLogger(__name__)
 
 

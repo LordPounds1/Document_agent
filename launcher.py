@@ -3,12 +3,12 @@ Launcher для Document Processing Agent
 Запускает Streamlit приложение и открывает браузер
 """
 
-from pathlib import Path
 import os
 import subprocess
 import sys
 import time
 import webbrowser
+from pathlib import Path
 def main():
     # Определяем директорию приложения
     if getattr(sys, 'frozen', False):

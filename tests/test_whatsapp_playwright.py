@@ -9,12 +9,12 @@
     pytest tests/test_whatsapp_playwright.py -v
 """
 
+import pytest
 from datetime import datetime
 from pathlib import Path
 
 from unittest.mock import AsyncMock, Mock
 # ============ Tests for sources/base.py ============
-
 class TestDocumentType:
     """Тесты для DocumentType enum."""
 
@@ -346,17 +346,11 @@ class TestIntegration:
 
     def test_imports_work(self):
         """Проверка что все импорты работают."""
-        from sources import EmailSource, WhatsAppSource
-        from sources import InputSource, Document, DocumentType
-        from whatsapp import MessageScanner, DocumentDownloader
-        from whatsapp import WhatsAppClient, ChatIterator
-        from whatsapp import WhatsAppPipeline
         # All imports successful
         assert True
 
     def test_document_processor_integration(self):
         """Проверка интеграции с существующим DocumentProcessor."""
-        from processors.document import DocumentProcessor
         from sources.base import Document, DocumentType
         # Create a mock document from WhatsApp
         doc = Document(
@@ -390,7 +384,6 @@ class TestIntegration:
 
     def test_unified_interface(self):
         """Проверка единого интерфейса для разных источников."""
-        from sources.base import InputSource, SyncInputSource
         from sources.email_source import EmailSource
         from sources.whatsapp_source import WhatsAppSource
         # Both implement the same interface pattern

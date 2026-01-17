@@ -5,9 +5,10 @@ This module provides a common interface for different document sources:
 - WhatsAppSource: documents from WhatsApp chats
 """
 
-from sources.base import InputSource, Document, DocumentType
+from sources.base import Document, DocumentType, InputSource
 from sources.email_source import EmailSource
 from sources.whatsapp_source import WhatsAppSource
+
 __all__ = [
     'InputSource',
     'Document',

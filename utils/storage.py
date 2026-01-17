@@ -6,14 +6,14 @@
 - Истории проверок
 """
 
+import logging
+import os
+import sqlite3
 from contextlib import contextmanager
 from dataclasses import dataclass
 from datetime import datetime, timedelta
 from pathlib import Path
 from typing import Any
-import logging
-import os
-import sqlite3
 logger = logging.getLogger(__name__)
 
 # Путь к базе данных

@@ -3,12 +3,12 @@
 Scans chat messages to find documents (PDF, DOCX, etc.).
 """
 
-from dataclasses import dataclass, field
-from datetime import datetime
-from typing import Any
 import asyncio
 import hashlib
 import logging
+from dataclasses import dataclass, field
+from datetime import datetime
+from typing import Any
 logger = logging.getLogger(__name__)
 
 try:

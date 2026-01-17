@@ -11,14 +11,14 @@
 5. Мониторинг новых писем
 """
 
-from datetime import datetime
-from pathlib import Path
 import importlib.util
 import io
 import logging
 import sys
 import threading
 import time
+from datetime import datetime
+from pathlib import Path
 
 import pandas as pd
 import streamlit as st

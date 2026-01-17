@@ -1,7 +1,7 @@
 """Pytest fixtures and configuration."""
 
-from pathlib import Path
 import sys
+from pathlib import Path
 
 import pytest
 # Добавляем корень проекта в путь

@@ -3,9 +3,9 @@
 Downloads documents (PDF, DOCX) from WhatsApp messages.
 """
 
-from pathlib import Path
 import asyncio
 import logging
+from pathlib import Path
 
 from whatsapp.message_scanner import MessageInfo
 logger = logging.getLogger(__name__)

@@ -8,11 +8,12 @@ Retry-декораторы и утилиты для устойчивой раб�
 - Таймауты
 """
 
-from collections.abc import Callable
 import functools
 import logging
+import platform
 import random
 import time
+from collections.abc import Callable
 logger = logging.getLogger(__name__)
 
 
@@ -74,7 +75,8 @@ def retry(
                     # Вычисляем задержку
                     wait_time = min(current_delay, max_delay)
                     if jitter:
-                        wait_time = wait_time * (0.5 + random.random())
+                        # Используем random для jitter, не для криптографии
+                        wait_time = wait_time * (0.5 + random.random())  # noqa: S311
 
                     logger.warning(
                         f"[Retry] {func.__name__} attempt {attempt}/{max_attempts} "

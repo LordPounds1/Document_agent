@@ -261,7 +261,7 @@ def start_email_monitoring(
     Сохраняет конфигурацию в хранилище, после чего
     периодическая задача будет проверять этот email.
     """
-    from utils.storage import MonitorStorage, MonitorConfig
+    from utils.storage import MonitorConfig, MonitorStorage
     logger.info(f"[Background] Starting monitoring for: {email_address}")
 
     storage = MonitorStorage()

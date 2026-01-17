@@ -7,13 +7,13 @@
 Для автоматического режима используется неофициальный API через WhatsApp Web.
 """
 
+import logging
+import re
 from collections.abc import Callable
 from dataclasses import dataclass, field
 from datetime import datetime
 from pathlib import Path
 from typing import Any
-import logging
-import re
 logger = logging.getLogger(__name__)
 
 # Опциональные зависимости
