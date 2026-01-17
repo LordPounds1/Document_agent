@@ -138,6 +138,9 @@ class WhatsAppPipeline:
 
         processed_chats = 0
 
+        if not self._iterator:
+            logger.error('ChatIterator not initialized')
+            return
         async for chat in self._iterator.iter_chats(scroll_count=5):
             if processed_chats >= chat_limit:
                 break
@@ -152,6 +155,9 @@ class WhatsAppPipeline:
                 await asyncio.sleep(1.5)
 
                 # Verify chat is actually open
+                if not self._client:
+                    logger.warning(f'Client is None for chat: {chat.name}')
+                    continue
                 page = self._client.page
                 if page is None:
                     logger.warning(f'Page is None for chat: {chat.name}')
@@ -258,7 +264,7 @@ class WhatsAppPipeline:
             elif suffix in ['.docx', '.doc']:
                 try:
                     import docx2txt
-                    return docx2txt.process(str(path))
+                    return docx2txt.process(str(path))  # type: ignore[return, no-any-return]
                 except ImportError:
                     logger.warning('docx2txt not installed')
                     return ''

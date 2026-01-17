@@ -4,6 +4,7 @@
 
 import sys
 from unittest.mock import MagicMock
+
 import pytest
 # Mock streamlit before importing auth
 mock_st = MagicMock()

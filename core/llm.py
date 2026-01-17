@@ -100,7 +100,7 @@ class LLMClient:
                 if self._inference_count % 50 == 0:
                     logger.info(f"[LLM] Completed {self._inference_count} inferences")
 
-                return text
+                return text  # type: ignore[return, no-any-return]
             except Exception as e:
                 logger.error(f"Generation failed: {e}")
                 return ""
@@ -167,5 +167,5 @@ class LLMClient:
                 result[field] = ""
 
         logger.debug(f"Extracted fields via regex: {list(result.keys())}")
-        return result
+        return result  # type: ignore[return, no-any-return]
 

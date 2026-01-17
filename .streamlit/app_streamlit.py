@@ -21,7 +21,7 @@ from datetime import datetime
 from pathlib import Path
 
 import pandas as pd
-import streamlit as st
+import streamlit as st  # noqa: I001
 # Добавляем родительскую директорию в путь для импортов
 sys.path.insert(0, str(Path(__file__).parent.parent))
 

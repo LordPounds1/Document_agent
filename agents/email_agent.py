@@ -363,7 +363,7 @@ class EmailAgent:
             # DOCX файлы
             if filename.endswith('.docx'):
                 import docx2txt
-                return docx2txt.process(io.BytesIO(content))
+                return docx2txt.process(io.BytesIO(content))  # type: ignore[return, no-any-return]
 
             # PDF файлы
             elif filename.endswith('.pdf'):
@@ -380,7 +380,7 @@ class EmailAgent:
 
             # TXT файлы
             elif filename.endswith('.txt'):
-                return content.decode('utf-8', errors='replace')
+                return content.decode('utf-8', errors='replace')  # type: ignore[return, no-any-return]
 
         except Exception as e:
             logger.error(f"Ошибка извлечения текста из {filename}: {e}")

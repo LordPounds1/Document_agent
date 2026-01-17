@@ -10,6 +10,8 @@ from datetime import datetime
 from enum import Enum
 from pathlib import Path
 from typing import Any
+
+
 class DocumentType(Enum):
     """Supported document types."""
     PDF = 'pdf'

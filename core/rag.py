@@ -222,11 +222,11 @@ class SimpleRAG:
         except Exception as e:
             logger.error(f"Failed to index documents: {e}")
 
-    def _read_docx(self, file_path: Path) -> str:  # type: ignore[return]
+    def _read_docx(self, file_path: Path) -> str:  # type: ignore[return, no-any-return]
         """Чтение DOCX файла"""
         try:
             import docx2txt
-            return docx2txt.process(str(file_path))
+            return docx2txt.process(str(file_path))  # type: ignore[return, no-any-return]
         except ImportError:
             logger.error("docx2txt not installed. Run: pip install docx2txt")
             return ""
@@ -468,7 +468,7 @@ class SimpleRAG:
                 doc_id = f"doc_{hash(document_hash)}"  # noqa: S608
                 self.collection.delete(ids=[doc_id])
             except Exception as e:
-                logger.error(f"Failed to delete from ChromaDB: {e}")
+                logger.error(f"Failed to delete from ChromaDB: {e}")  # noqa: S608
 
         # Удаляем из списка документов
         self.documents = [

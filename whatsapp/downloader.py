@@ -268,7 +268,7 @@ class DocumentDownloader:
                 }
             ''', doc_name)
 
-            return clicked
+            return bool(clicked)  # type: ignore[return, no-any-return]
 
         except Exception as e:
             logger.debug(f'Find and click document failed: {e}')

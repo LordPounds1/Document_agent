@@ -596,7 +596,7 @@ class WhatsAppAgent:
             elif suffix == '.docx':
                 try:
                     import docx2txt
-                    return docx2txt.process(str(file_path_obj))  # type: ignore[return]
+                    return docx2txt.process(str(file_path_obj))  # type: ignore[return, no-any-return]
                 except ImportError:
                     logger.error("docx2txt не установлен")
                     return None

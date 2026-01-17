@@ -58,7 +58,11 @@ def _verify_password(password: str, stored_hash: str, salt: str) -> bool:
     Returns:
         True если пароль верный
     """
-    computed_hash, _ = _hash_password(password, salt)
+    # Convert salt from hex string to bytes if needed
+    salt_bytes: bytes | None = None
+    if salt:
+        salt_bytes = bytes.fromhex(salt) if isinstance(salt, str) else salt
+    computed_hash, _ = _hash_password(password, salt_bytes)
     return hmac.compare_digest(computed_hash, stored_hash)
 
 

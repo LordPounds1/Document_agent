@@ -109,6 +109,9 @@ class WhatsAppClient:
             self._playwright = playwright_instance  # type: ignore[assignment]
 
             # Launch browser with persistent context for session
+            if not self._playwright:
+                logger.error('Playwright instance is None')
+                return False
             self._context = await self._playwright.chromium.launch_persistent_context(
                 user_data_dir=str(self.session_dir),
                 headless=self.headless,

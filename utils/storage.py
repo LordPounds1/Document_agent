@@ -247,7 +247,7 @@ class MonitorStorage:
                 (email_address,)
             )
             logger.info(f"Deactivated monitoring for: {email_address}")
-            return cursor.rowcount > 0
+            return bool(cursor.rowcount) and cursor.rowcount > 0
 
     def delete_config(self, email_address: str) -> bool:
         """Удаление конфигурации."""
