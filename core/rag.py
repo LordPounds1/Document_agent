@@ -87,8 +87,8 @@ class SimpleRAG:
         'ответственность сторон', 'расторжение', 'подпись'
     ]
 
-    # Модель для эмбеддингов (мультиязычная, поддерживает русский)
-    EMBEDDING_MODEL = "sentence-transformers/paraphrase-multilingual-MiniLM-L12-v2"
+    # Модель для эмбеддингов (специализированная для русского языка, лучше для юридических текстов)
+    EMBEDDING_MODEL = "ai-forever/sbert_large_nlu_ru"
 
     def __init__(
         self,

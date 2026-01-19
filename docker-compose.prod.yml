@@ -54,8 +54,8 @@ services:
     
     # Volumes
     volumes:
-      # Модель LLM (только чтение)
-      - ./models:/app/models:ro
+      # Модель LLM и эмбеддинги (чтение/запись для дообучения)
+      - ./models:/app/models
       # Шаблоны договоров (только чтение)
       - ./templates:/app/templates:ro
       # Зашифрованные шаблоны (только чтение)
@@ -138,8 +138,8 @@ services:
         condition: service_healthy
     
     # Переопределяем команду запуска
-    entrypoint: ["/bin/sh", "-c"]
-    command: "cd /app && python -m celery -A celery_app worker --loglevel=info --concurrency=2"
+    entrypoint: []
+    command: ["sh", "-c", "cd /app && exec python -m celery -A celery_app worker --loglevel=info --concurrency=2"]
     
     # Volumes (те же что у основного приложения)
     volumes:
@@ -195,8 +195,8 @@ services:
         condition: service_started
     
     # Переопределяем команду запуска
-    entrypoint: ["/bin/sh", "-c"]
-    command: "cd /app && python -m celery -A celery_app beat --loglevel=info"
+    entrypoint: []
+    command: ["sh", "-c", "cd /app && exec python -m celery -A celery_app beat --loglevel=info"]
     
     # Volumes
     volumes:
