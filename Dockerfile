@@ -1,7 +1,7 @@
 # Document Processing Agent - Dockerfile
 # Streamlit + llama-cpp-python (CPU версия) + Playwright для WhatsApp
 
-FROM python:3.11-slim
+FROM python:3.14-slim
 
 # Метаданные
 LABEL maintainer="Document Agent Team"
